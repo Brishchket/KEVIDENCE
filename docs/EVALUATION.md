@@ -42,3 +42,7 @@ A blinded A/B/C survey of the three audiences (Manager, Analyst, IT Admin).
 *Metrics:*
 - **Mean Clarity Score (1-5 Likert):** Target $\ge 4.0$.
 - **Would Act Rate (Binary):** What percentage of respondents felt they had enough info to make a decision?
+
+**Latest run (10 raters, 165 responses, mock provider):**
+- **mean_clarity (`overall_mean_clarity`):** 3.47 (target $\ge$ 4.0 — not met)
+- **would_act_rate:** 0.80 (80%)

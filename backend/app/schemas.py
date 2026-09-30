@@ -171,6 +171,8 @@ class SurveyResponseInput(BaseModel):
     rater_id: str
     clarity_rating: int = Field(ge=1, le=5)
     would_act: Optional[bool] = None
+    cve_id: str = ""
+    condition: str = ""
 
 
 class EvalSummaryResponse(BaseModel):

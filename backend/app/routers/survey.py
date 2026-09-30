@@ -60,8 +60,8 @@ async def submit_survey_response(body: SurveyResponseInput):
     """Submit a survey response."""
     row_id = await insert_survey_response({
         "item_id": body.item_id,
-        "cve_id": "",  # will be resolved
-        "condition": "",
+        "cve_id": body.cve_id,
+        "condition": body.condition,
         "rater_id": body.rater_id,
         "clarity_rating": body.clarity_rating,
         "would_act": body.would_act,

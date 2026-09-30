@@ -69,6 +69,18 @@ async def export_labels(output_dir: Path | None = None) -> dict[str, Any]:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     csv_path = output_dir / "verifier_labels.csv"
+    if csv_path.exists():
+        with open(csv_path, "r", encoding="utf-8", newline="") as f:
+            existing = list(csv.DictReader(f))
+        if any((r.get("human_label") or "").strip() for r in existing):
+            return {
+                "exported": len(existing),
+                "supported_count": len([s for s in existing if s.get("auto_supported") == "yes"]),
+                "flagged_count": len([s for s in existing if s.get("auto_supported") == "no"]),
+                "path": str(csv_path),
+                "note": "Existing labeled file preserved (not overwritten)",
+            }
+
     with open(csv_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=[
             "cve_id", "audience", "sentence", "auto_supported",

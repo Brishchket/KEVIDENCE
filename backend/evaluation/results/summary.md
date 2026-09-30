@@ -2,6 +2,16 @@
 
 **Provider:** mock
 
+## Report metrics (survey)
+
+| Metric | Value |
+| --- | --- |
+| Raters | 10 (PASS) |
+| **mean_clarity** (`overall_mean_clarity`) | **3.47** (target ≥ 4.0) |
+| **would_act_rate** | **0.80** (80%) |
+
+The harness still tags this run `PIPELINE TEST ONLY, not reportable` because `LLM_PROVIDER=mock`.
+
 ## Baseline Comparison
 
 ```json
@@ -393,11 +403,49 @@
     "supported_count": 25,
     "flagged_count": 25,
     "path": "C:\\Users\\anike\\Desktop\\proto\\PhantomPatch\\backend\\evaluation\\labeling\\verifier_labels.csv",
-    "note": "Fill the human_label column with 'supported' or 'unsupported'"
+    "note": "Existing labeled file preserved (not overwritten)"
   },
   "scoring": {
-    "status": "SKIPPED: needs human labels",
-    "note": "human_label column is empty \u2014 fill it first"
+    "n_labeled": 50,
+    "agreement": 0.54,
+    "precision": 0.76,
+    "recall": 0.5278,
+    "f1": 0.623,
+    "target_f1": 0.85,
+    "f1_pass": false,
+    "threshold_sweep": [
+      {
+        "threshold": 0.5,
+        "precision": 0.7179,
+        "recall": 0.7778,
+        "f1": 0.7467
+      },
+      {
+        "threshold": 0.55,
+        "precision": 0.8,
+        "recall": 0.6667,
+        "f1": 0.7273
+      },
+      {
+        "threshold": 0.6,
+        "precision": 0.7692,
+        "recall": 0.5556,
+        "f1": 0.6452
+      },
+      {
+        "threshold": 0.65,
+        "precision": 0.6842,
+        "recall": 0.3611,
+        "f1": 0.4727
+      },
+      {
+        "threshold": 0.7,
+        "precision": 0.6667,
+        "recall": 0.3333,
+        "f1": 0.4444
+      }
+    ],
+    "recommended_threshold": 0.5
   },
   "synthetic_adversarial": {
     "label": "SYNTHETIC \u2014 sanity check only, not a substitute for human labels",
@@ -439,7 +487,46 @@
 
 ## Survey Analysis
 
-**SKIPPED: needs survey responses**
+```json
+{
+  "provider": "mock",
+  "note": "PIPELINE TEST ONLY, not reportable",
+  "n_raters": 10,
+  "n_responses": 165,
+  "conditions": {
+    "": {
+      "n_responses": 90,
+      "mean": 2.64,
+      "sd": 1.19
+    },
+    "C": {
+      "n_responses": 25,
+      "mean": 4.4,
+      "sd": 0.49
+    },
+    "A": {
+      "n_responses": 25,
+      "mean": 4.8,
+      "sd": 0.4
+    },
+    "B": {
+      "n_responses": 25,
+      "mean": 4.2,
+      "sd": 0.4
+    }
+  },
+  "overall_mean_clarity": 3.47,
+  "would_act_rate": 0.8,
+  "targets": {
+    "min_raters": 10,
+    "min_mean_clarity": 4.0
+  },
+  "pass_fail": {
+    "raters": "PASS",
+    "mean_clarity": "PENDING (mean=3.47)"
+  }
+}
+```
 
 ---
 
