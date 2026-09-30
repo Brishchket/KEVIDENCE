@@ -1,0 +1,445 @@
+# PhantomPatch Evaluation Summary
+
+**Provider:** mock
+
+## Baseline Comparison
+
+```json
+{
+  "provider": "mock",
+  "model": "mock-template-v1",
+  "note": "PIPELINE TEST ONLY, not reportable",
+  "n_cves": 50,
+  "raw": {
+    "flesch_scores": [
+      31.5,
+      56.2,
+      60.5,
+      40.9,
+      45.3,
+      43.9,
+      38.7,
+      47.6,
+      24.0,
+      36.3,
+      28.7,
+      56.2,
+      5.3,
+      46.6,
+      36.0,
+      27.5,
+      36.3,
+      38.1,
+      -5.4,
+      5.3,
+      18.4,
+      35.2,
+      25.6,
+      28.5,
+      19.9,
+      40.1,
+      4.9,
+      1.6,
+      -0.1,
+      -14.6,
+      46.9,
+      42.6,
+      -7.7,
+      -19.7,
+      4.6,
+      4.5,
+      0.4,
+      13.6,
+      4.1,
+      10.0,
+      -3.8,
+      16.7,
+      43.3,
+      42.7,
+      55.6,
+      42.2,
+      49.8,
+      48.0,
+      48.0,
+      27.5
+    ],
+    "unsupported_rates": [
+      0.6667,
+      0.0,
+      0.0,
+      0.8571,
+      0.8,
+      0.8,
+      0.6667,
+      0.8333,
+      0.0,
+      0.6,
+      0.6,
+      0.6,
+      0.0,
+      0.8,
+      0.6667,
+      0.0,
+      0.6667,
+      0.75,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.5,
+      0.0,
+      0.3333,
+      0.25,
+      0.0,
+      0.0,
+      0.0,
+      0.1429,
+      0.5,
+      0.0,
+      0.1429,
+      0.1429,
+      0.0,
+      0.0,
+      0.0,
+      0.3333,
+      0.0,
+      0.0,
+      0.4,
+      0.0,
+      0.6667,
+      0.6,
+      0.6,
+      0.6,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "coverage": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.3333,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.6667,
+      0.0,
+      0.0,
+      0.6667,
+      0.6667,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "mean_flesch": 26.6,
+    "mean_unsupported": 0.2904,
+    "mean_coverage": 0.0467
+  },
+  "phantompatch": {
+    "flesch_scores": [
+      53.5,
+      53.5,
+      53.5,
+      58.7,
+      58.7,
+      58.7,
+      58.7,
+      58.7,
+      58.7,
+      58.7,
+      58.7,
+      58.7,
+      58.7,
+      58.7,
+      58.7,
+      58.7,
+      58.7,
+      58.7,
+      58.7,
+      58.7,
+      58.7,
+      58.7,
+      58.7,
+      58.7,
+      58.7,
+      58.7,
+      58.7,
+      58.7,
+      58.7,
+      58.7,
+      58.7,
+      58.7,
+      58.7,
+      58.7,
+      58.7,
+      58.7,
+      58.7,
+      58.7,
+      58.7,
+      55.7,
+      55.7,
+      58.7,
+      58.7,
+      58.7,
+      58.7,
+      58.7,
+      58.7,
+      58.7,
+      58.7,
+      58.7
+    ],
+    "unsupported_rates": [
+      0.2,
+      0.2,
+      0.2,
+      0.25,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.25,
+      0.25,
+      0.25,
+      0.25,
+      0.25,
+      0.25,
+      0.25,
+      0.25,
+      0.25,
+      0.25,
+      0.25,
+      0.5,
+      0.5,
+      0.25,
+      0.25,
+      0.25,
+      0.5,
+      0.25,
+      0.5,
+      0.5,
+      0.25,
+      0.5,
+      0.5,
+      0.25,
+      0.25,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.25,
+      0.25,
+      0.0,
+      0.0,
+      0.5,
+      0.25,
+      0.5,
+      0.5,
+      0.5,
+      0.25,
+      0.25,
+      0.25,
+      0.25
+    ],
+    "coverage": [
+      0.5,
+      0.5,
+      0.5,
+      0.6667,
+      0.6667,
+      0.6667,
+      0.6667,
+      0.6667,
+      0.6667,
+      0.6667,
+      0.6667,
+      0.6667,
+      0.6667,
+      0.6667,
+      0.6667,
+      0.6667,
+      0.6667,
+      0.6667,
+      0.6667,
+      0.6667,
+      0.6667,
+      0.6667,
+      0.6667,
+      0.6667,
+      0.6667,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      0.6667,
+      1.0,
+      1.0,
+      0.6667,
+      0.6667,
+      0.6667,
+      0.6667,
+      0.6667,
+      0.6667,
+      0.6667,
+      0.6667,
+      0.6667
+    ],
+    "mean_flesch": 58.3,
+    "mean_unsupported": 0.332,
+    "mean_coverage": 0.7567
+  },
+  "targets": {
+    "flesch_min": 60,
+    "unsupported_max": 0.05
+  },
+  "pass_fail": {
+    "flesch": "FAIL",
+    "unsupported": "FAIL"
+  }
+}
+```
+
+---
+
+## Priority Eval
+
+```json
+{
+  "provider": "mock",
+  "model": "N/A (scoring only)",
+  "note": "PIPELINE TEST ONLY, not reportable",
+  "total_cves": 4140,
+  "total_kev": 3,
+  "rankings": {
+    "phantompatch": {
+      "recall@25": 1.0,
+      "recall@50": 1.0,
+      "recall@100": 1.0
+    },
+    "cvss_only": {
+      "recall@25": 0.0,
+      "recall@50": 0.0,
+      "recall@100": 0.0
+    },
+    "epss_only": {
+      "recall@25": 0.3333,
+      "recall@50": 0.3333,
+      "recall@100": 0.6667
+    },
+    "kev_ablated": {
+      "recall@25": 0.3333,
+      "recall@50": 0.3333,
+      "recall@100": 0.3333
+    }
+  },
+  "circularity_note": "KEV recall on the PhantomPatch score is partly circular because KEV accounts for 40% of the score. The kev_ablated ranking removes this component and uses only CVSS + EPSS (renormalized) for a fairer comparison."
+}
+```
+
+---
+
+## Verifier Validation
+
+```json
+{
+  "provider": "mock",
+  "note": "PIPELINE TEST ONLY, not reportable",
+  "export": {
+    "exported": 50,
+    "supported_count": 25,
+    "flagged_count": 25,
+    "path": "C:\\Users\\anike\\Desktop\\proto\\PhantomPatch\\backend\\evaluation\\labeling\\verifier_labels.csv",
+    "note": "Fill the human_label column with 'supported' or 'unsupported'"
+  },
+  "scoring": {
+    "status": "SKIPPED: needs human labels",
+    "note": "human_label column is empty \u2014 fill it first"
+  },
+  "synthetic_adversarial": {
+    "label": "SYNTHETIC \u2014 sanity check only, not a substitute for human labels",
+    "total": 5,
+    "caught": 5,
+    "catch_rate": 1.0,
+    "details": [
+      {
+        "sentence": "CVE-2024-SYNTH has a CVSS score of 7.5.",
+        "faithfulness": 0.0,
+        "caught": true
+      },
+      {
+        "sentence": "This vulnerability was exploited by APT29 against government agencies.",
+        "faithfulness": 0.0,
+        "caught": true
+      },
+      {
+        "sentence": "The EPSS probability is 0.12, indicating low risk.",
+        "faithfulness": 0.0,
+        "caught": true
+      },
+      {
+        "sentence": "A patch was released on 2024-06-30.",
+        "faithfulness": 0.0,
+        "caught": true
+      },
+      {
+        "sentence": "The vulnerability affects Microsoft Windows Server 2022.",
+        "faithfulness": 0.0,
+        "caught": true
+      }
+    ]
+  }
+}
+```
+
+---
+
+## Survey Analysis
+
+**SKIPPED: needs survey responses**
+
+---
+

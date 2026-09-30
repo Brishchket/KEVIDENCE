@@ -1,0 +1,110 @@
+import { fetcher } from "@/lib/api";
+import Link from "next/link";
+import NarrativeTabs from "@/components/NarrativeTabs";
+
+export const dynamic = "force-dynamic";
+
+export default async function CVEDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  
+  // Fetch Evidence
+  let evidence;
+  try {
+    evidence = await fetcher(`/cves/${id}`, { cache: "no-store" });
+  } catch (e) {
+    return <div className="p-10 text-center text-red-500">CVE {id} not found.</div>;
+  }
+
+  // Fetch Narratives
+  let narrativesData;
+  try {
+    narrativesData = await fetcher(`/cves/${id}/narratives`, { cache: "no-store" });
+  } catch (e) {
+    narrativesData = { narratives: [] };
+  }
+
+  const { narratives } = narrativesData;
+
+  return (
+    <div className="max-w-6xl mx-auto space-y-6">
+      <div className="flex items-center gap-4 mb-6">
+        <Link href="/" className="text-blue-600 hover:underline text-sm font-medium">← Back to Dashboard</Link>
+      </div>
+
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="bg-gray-50 px-6 py-4 border-b border-gray-200 flex justify-between items-start">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">{id}</h1>
+            <p className="text-sm text-gray-500 mt-1">Published: {evidence.published_date?.split('T')[0]}</p>
+          </div>
+          <div className="text-right">
+            <div className="text-sm text-gray-500 font-medium">Priority Score</div>
+            <div className="text-3xl font-bold text-gray-900">{evidence.priority.score.toFixed(3)}</div>
+            <div className={`mt-1 inline-block px-2 py-1 rounded text-xs font-bold ${
+              evidence.priority.label === "CRITICAL" ? "bg-red-100 text-red-700" :
+              evidence.priority.label === "HIGH" ? "bg-orange-100 text-orange-700" :
+              evidence.priority.label === "MEDIUM" ? "bg-yellow-100 text-yellow-700" :
+              "bg-green-100 text-green-700"
+            }`}>
+              {evidence.priority.label}
+            </div>
+          </div>
+        </div>
+
+        <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="md:col-span-2 space-y-6">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider mb-2">Description</h3>
+              <p className="text-gray-700">{evidence.description}</p>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
+                <div className="text-xs text-gray-500 font-medium mb-1">CVSS Score</div>
+                <div className="text-xl font-bold">{evidence.cvss.score || "N/A"}</div>
+                <div className="text-xs text-gray-400 font-mono mt-1">{evidence.cvss.vector}</div>
+              </div>
+              <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
+                <div className="text-xs text-gray-500 font-medium mb-1">EPSS Probability</div>
+                <div className="text-xl font-bold">{(evidence.epss.probability * 100).toFixed(1)}%</div>
+                <div className="text-xs text-gray-400 mt-1">{evidence.epss.percentile ? `Percentile: ${(evidence.epss.percentile * 100).toFixed(1)}th` : ''}</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider mb-2">CISA KEV</h3>
+              {evidence.kev.in_kev ? (
+                <div className="bg-red-50 text-red-900 p-3 rounded border border-red-200 text-sm">
+                  <span className="font-bold block mb-1">⚠️ Known Exploited</span>
+                  {evidence.kev.date_added && <div>Added: {evidence.kev.date_added}</div>}
+                  {evidence.kev.due_date && <div>Due: {evidence.kev.due_date}</div>}
+                </div>
+              ) : (
+                <div className="text-sm text-gray-500">Not listed in KEV catalog.</div>
+              )}
+            </div>
+
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider mb-2">Affected</h3>
+              <div className="text-sm text-gray-700">
+                <span className="font-medium">Vendor:</span> {evidence.affected.vendor || "Unknown"}<br/>
+                <span className="font-medium">Product:</span> {evidence.affected.product || "Unknown"}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
+          <h2 className="text-lg font-bold text-gray-900">Audience-Specific Narratives</h2>
+          <p className="text-sm text-gray-500">Generated by LLM, verified against evidence.</p>
+        </div>
+        
+        <NarrativeTabs cveId={id} initialNarratives={narratives} />
+      </div>
+    </div>
+  );
+}
