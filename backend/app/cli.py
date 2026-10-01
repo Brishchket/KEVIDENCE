@@ -90,7 +90,7 @@ async def cmd_narrate(args: argparse.Namespace) -> None:
         from app.db import get_narratives
         for audience in audiences:
             existing = await get_narratives(cve_id)
-            if any(n["audience"] == audience for n in existing):
+            if not args.force and any(n["audience"] == audience for n in existing):
                 logger.info("Skipping %s (%s): already generated", cve_id, audience)
                 continue
             
@@ -151,6 +151,8 @@ def main() -> None:
                                 help="Audience(s) to generate for (default: all)")
     narrate_parser.add_argument("--provider", type=str, default=None,
                                 help="LLM provider override (default: from config)")
+    narrate_parser.add_argument("--force", action="store_true",
+                                help="Regenerate and overwrite existing narratives")
 
     # Evaluate command
     subparsers.add_parser("evaluate", help="Run evaluation harness")

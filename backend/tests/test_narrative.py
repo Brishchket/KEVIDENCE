@@ -3,8 +3,24 @@ test_narrative.py — Tests for narrative generation with mock LLM and retry loo
 """
 import pytest
 import asyncio
-from app.schemas import Evidence, CVSSDetail, EPSSDetail, KEVDetail, PriorityDetail, PriorityBreakdown, AffectedDetail
+from app.schemas import (
+    AffectedDetail,
+    CVSSDetail,
+    EPSSDetail,
+    Evidence,
+    KEVDetail,
+    PriorityBreakdown,
+    PriorityDetail,
+    SentenceVerification,
+    VerificationResult,
+)
 from app.llm.mock import MockLLMClient
+from app.llm.prompts import (
+    PROMPT_VERSION,
+    get_retry_prompt,
+    get_system_prompt,
+    normalize_audience,
+)
 from app.narrative.generator import generate_narrative, _confidence_label
 from app.db import init_db
 
@@ -57,6 +73,90 @@ class TestConfidenceLabel:
     def test_low(self):
         assert _confidence_label(0.79) == "LOW"
         assert _confidence_label(0.0) == "LOW"
+
+
+class TestAudiencePrompts:
+    def test_audiences_have_distinct_writing_goals(self):
+        manager = get_system_prompt("manager")
+        analyst = get_system_prompt("analyst")
+        it_admin = get_system_prompt("it_admin")
+
+        assert PROMPT_VERSION == "v3"
+        assert "decision-ready summary" in manager
+        assert "concise triage assessment" in analyst
+        assert "The person who will apply the fix" in it_admin
+
+    def test_audience_aliases_normalize_to_stored_keys(self):
+        assert normalize_audience("Business Administrator") == "manager"
+        assert normalize_audience("security-analyst") == "analyst"
+        assert normalize_audience("IT Admin") == "it_admin"
+
+    def test_unknown_audience_is_rejected(self):
+        with pytest.raises(ValueError, match="Unknown audience"):
+            get_system_prompt("business owner")
+
+    def test_retry_prompt_keeps_audience_and_prior_narrative(self):
+        prompt = get_retry_prompt(
+            "{}",
+            ["unsupported claim"],
+            audience="Business Administrator",
+            previous_narrative="previous draft",
+        )
+
+        assert "business administrator audience" in prompt
+        assert "previous draft" in prompt
+        assert "unsupported claim" in prompt
+
+
+class TestAudiencePromptIntegration:
+    @pytest.mark.asyncio
+    async def test_generation_normalizes_audience_and_preserves_retry_context(self, monkeypatch):
+        from app.narrative import generator
+
+        calls = []
+        outputs = iter(("first draft", "revised draft"))
+        verification_results = iter((
+            VerificationResult(
+                faithfulness_score=0.2,
+                supported_count=0,
+                total_count=1,
+                sentences=[SentenceVerification(text="unsupported claim", supported=False)],
+            ),
+            VerificationResult(
+                faithfulness_score=0.99,
+                supported_count=1,
+                total_count=1,
+                sentences=[SentenceVerification(text="revised draft", supported=True)],
+            ),
+        ))
+
+        class RecordingClient:
+            provider_name = "test"
+            model_name = "test-model"
+
+            async def generate(self, system, user):
+                calls.append((system, user))
+                return next(outputs)
+
+        async def no_op_upsert(_record):
+            return None
+
+        monkeypatch.setattr(generator, "upsert_narrative", no_op_upsert)
+        monkeypatch.setattr(
+            generator,
+            "verify_narrative",
+            lambda *_args: next(verification_results),
+        )
+
+        record = await generator.generate_narrative(
+            _make_evidence(), "Business Administrator", RecordingClient()
+        )
+
+        assert record.audience == "manager"
+        assert record.prompt_version == "v3"
+        assert "business administrator audience" in calls[1][1]
+        assert "first draft" in calls[1][1]
+        assert "unsupported claim" in calls[1][1]
 
 
 class TestMockLLM:

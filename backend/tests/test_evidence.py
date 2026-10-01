@@ -97,6 +97,29 @@ class TestEvidenceBuilder:
             assert evidence.recommended_action is not None
             assert len(evidence.recommended_action) > 10
 
+    def test_recommended_action_uses_kev_action_and_deadline(self):
+        record = _make_cve_record()
+        kev = {
+            "date_added": "2024-01-15",
+            "due_date": "2024-02-15",
+            "required_action": "Apply the vendor update",
+            "known_ransomware_use": "Known",
+        }
+
+        evidence = build_evidence_from_record(record, kev_row=kev)
+
+        assert "Apply the vendor update" in evidence.recommended_action
+        assert "2024-02-15" in evidence.recommended_action
+        assert "https://example.com/patch" in evidence.recommended_action
+
+    def test_recommended_action_targets_product_without_kev(self):
+        record = _make_cve_record(in_kev=False)
+
+        evidence = build_evidence_from_record(record)
+
+        assert "Testproduct" in evidence.recommended_action
+        assert "https://example.com/patch" in evidence.recommended_action
+
 
 class TestVerbalizer:
     def test_verbalize_produces_sentences(self):

@@ -27,6 +27,7 @@ from app.llm.prompts import (
     get_retry_prompt,
     get_system_prompt,
     get_user_prompt,
+    normalize_audience,
 )
 from app.schemas import Evidence, NarrativeRecord, VerificationResult
 from app.verification.verifier import verify_narrative
@@ -83,11 +84,13 @@ async def generate_narrative(
     if llm_client is None:
         llm_client = get_llm_client()
 
+    audience_key = normalize_audience(audience)
+
     evidence_json = evidence.model_dump_json(indent=2)
     evidence_sentences = verbalize(evidence)
 
-    system_prompt = get_system_prompt(audience)
-    user_prompt = get_user_prompt(audience, evidence_json)
+    system_prompt = get_system_prompt(audience_key)
+    user_prompt = get_user_prompt(audience_key, evidence_json)
 
     best_narrative: Optional[str] = None
     best_verification: Optional[VerificationResult] = None
@@ -97,7 +100,7 @@ async def generate_narrative(
     for attempt in range(1 + MAX_RETRIES):
         attempt_count = attempt + 1
         logger.info("Generating %s narrative for %s (attempt %d)",
-                     audience, evidence.cve_id, attempt_count)
+                     audience_key, evidence.cve_id, attempt_count)
 
         try:
             if attempt == 0:
@@ -105,11 +108,16 @@ async def generate_narrative(
             else:
                 # Retry with flagged sentences
                 flagged = [s.text for s in best_verification.sentences if not s.supported] if best_verification else []
-                retry_prompt = get_retry_prompt(evidence_json, flagged)
+                retry_prompt = get_retry_prompt(
+                    evidence_json,
+                    flagged,
+                    audience=audience_key,
+                    previous_narrative=best_narrative,
+                )
                 narrative_text = await llm_client.generate(system_prompt, retry_prompt)
         except Exception as exc:
             logger.error("LLM generation failed for %s (%s): %s",
-                         evidence.cve_id, audience, exc)
+                         evidence.cve_id, audience_key, exc)
             narrative_text = f"Narrative generation failed: {exc}"
 
         # Verify
@@ -137,7 +145,7 @@ async def generate_narrative(
 
     record = NarrativeRecord(
         cve_id=evidence.cve_id,
-        audience=audience,
+        audience=audience_key,
         narrative_text=best_narrative or "",
         prompt_version=PROMPT_VERSION,
         provider=llm_client.provider_name,

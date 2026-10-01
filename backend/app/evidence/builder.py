@@ -38,6 +38,38 @@ def _safe_json_loads(val: Any, default: Any = None) -> Any:
         return default
 
 
+def _build_recommended_action(
+    priority_label: str,
+    affected: AffectedDetail,
+    kev: KEVDetail,
+    patch_references: list[str],
+) -> str:
+    """Add CVE-specific remediation context to the priority-based action."""
+    action_parts = [
+        RECOMMENDED_ACTIONS.get(priority_label, RECOMMENDED_ACTIONS["LOW"]).rstrip().rstrip(".")
+    ]
+
+    if kev.in_kev and kev.required_action:
+        action_parts.append(f"CISA KEV requires {kev.required_action.rstrip().rstrip('.')}")
+        if kev.due_date:
+            action_parts.append(f"complete remediation by {kev.due_date}")
+    elif kev.in_kev and kev.due_date:
+        action_parts.append(f"CISA KEV remediation is due by {kev.due_date}")
+
+    if patch_references:
+        product = f" for {affected.product}" if affected.product else ""
+        action_parts.append(f"review vendor remediation guidance{product}: {patch_references[0]}")
+    elif affected.product:
+        target = affected.product
+        if affected.vendor:
+            target = f"{affected.vendor} {target}"
+        action_parts.append(
+            f"confirm whether {target} is deployed and, if affected, follow vendor guidance"
+        )
+
+    return "; ".join(action_parts) + "."
+
+
 async def build_evidence(cve_id: str) -> Optional[Evidence]:
     """
     Build an Evidence object for the given CVE ID by combining
@@ -112,14 +144,17 @@ async def build_evidence(cve_id: str) -> Optional[Evidence]:
     if isinstance(reasons, str):
         reasons = _safe_json_loads(reasons, [])
 
-    # Recommended action (fixed mapping from priority label)
+    # Recommended action with CVE-specific remediation context
     priority_label = cve_row.get("priority_label", "LOW")
-    recommended_action = RECOMMENDED_ACTIONS.get(priority_label, RECOMMENDED_ACTIONS["LOW"])
 
     # Patch references
     patch_refs = cve_row.get("patch_references", [])
     if isinstance(patch_refs, str):
         patch_refs = _safe_json_loads(patch_refs, [])
+
+    recommended_action = _build_recommended_action(
+        priority_label, affected, kev, patch_refs
+    )
 
     return Evidence(
         cve_id=cve_id,
@@ -199,11 +234,14 @@ def build_evidence_from_record(cve_row: dict, kev_row: dict | None = None,
         reasons = _safe_json_loads(reasons, [])
 
     priority_label = cve_row.get("priority_label", "LOW")
-    recommended_action = RECOMMENDED_ACTIONS.get(priority_label, RECOMMENDED_ACTIONS["LOW"])
 
     patch_refs = cve_row.get("patch_references", [])
     if isinstance(patch_refs, str):
         patch_refs = _safe_json_loads(patch_refs, [])
+
+    recommended_action = _build_recommended_action(
+        priority_label, affected, kev, patch_refs
+    )
 
     return Evidence(
         cve_id=cve_row.get("cve_id", ""),
