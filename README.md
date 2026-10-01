@@ -1,5 +1,5 @@
 <<<<<<< HEAD
-# PhantomPatch: Evidence-Grounded Vulnerability Risk Narrative Engine
+# Kevidence: Evidence-Grounded Vulnerability Risk Narrative Engine
 
 PhantomPatch is a complete pipeline for ingesting vulnerability data, computing a transparent priority score, and generating audience-specific risk narratives (Manager, Security Analyst, IT Admin). 
 
