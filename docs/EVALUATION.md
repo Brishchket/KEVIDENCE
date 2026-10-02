@@ -1,6 +1,6 @@
 # Evaluation Methodology
 
-PhantomPatch's evaluation harness automatically executes the quantitative assessments required for the project.
+KEVIDENCE's evaluation harness automatically executes the quantitative assessments required for the project.
 
 ## Running the Evaluation
 ```bash
@@ -14,7 +14,7 @@ Outputs are saved to `backend/evaluation/results/`.
 Compares three conditions:
 1. **Raw NVD Description**
 2. **Generic LLM** (No evidence constraint, simple prompt)
-3. **PhantomPatch Narrative** (Evidence-constrained, verified)
+3. **KEVIDENCE Narrative** (Evidence-constrained, verified)
 
 *Metrics:*
 - **Flesch Reading Ease:** Target $\ge 60$ (Plain English).
@@ -26,7 +26,7 @@ Assesses whether the deterministic scoring engine surfaces real risk.
 
 *Metrics:*
 - **KEV Recall@N** (N=25, 50, 100): What percentage of KEV-listed vulnerabilities appear in the top N?
-- Compares: CVSS-only vs. EPSS-only vs. PhantomPatch vs. KEV-Ablated (CVSS+EPSS renormalized).
+- Compares: CVSS-only vs. EPSS-only vs. KEVIDENCE vs. KEV-Ablated (CVSS+EPSS renormalized).
 
 ### 3. Verifier Validation (`verifier_validation.py`)
 Evaluates the core contribution: does the code accurately catch LLM hallucinations?

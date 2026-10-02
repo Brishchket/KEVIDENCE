@@ -1,7 +1,6 @@
-<<<<<<< HEAD
-# Kevidence: Evidence-Grounded Vulnerability Risk Narrative Engine
+# KEVIDENCE: Evidence-Grounded Vulnerability Risk Narrative Engine
 
-PhantomPatch is a complete pipeline for ingesting vulnerability data, computing a transparent priority score, and generating audience-specific risk narratives (Manager, Security Analyst, IT Admin). 
+KEVIDENCE is a complete pipeline for ingesting vulnerability data, computing a transparent priority score, and generating audience-specific risk narratives (Manager, Security Analyst, IT Admin). 
 
 Crucially, **the risk decision is made by deterministic code, not the LLM.** The LLM's only job is to explain the evidence in plain English. Every sentence the LLM generates is checked by an embedding-based faithfulness verifier. 
 
@@ -18,12 +17,10 @@ Crucially, **the risk decision is made by deterministic code, not the LLM.** The
 
 ### 1. Backend Setup
 
-Prerequisites: Python 3.11+ (Windows 10/11 with Git Bash recommended). No Docker required.
+Prerequisites: Python 3.11+ (Windows 10/11 with Git Bash / PowerShell recommended). No Docker required.
 
 ```bash
 cd backend
-python -m venv venv
-source venv/Scripts/activate  # Windows Git Bash
 pip install -r requirements.txt
 ```
 
@@ -91,6 +88,3 @@ python -m app.cli evaluate
 
 ## The Human 20%
 This codebase represents the ~80% of the project that can be scaffolded and verified by code. The remaining 20% requires real-world data gathering, human labeling of the verifier output, and survey distribution. See `HUMAN_TODO.md` for the exact protocol.
-=======
-# KEVIDENCE
->>>>>>> 76bf3291aeb620ee1f005ad49652e286f8ba1f40

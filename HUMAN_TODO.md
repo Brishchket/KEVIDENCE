@@ -1,6 +1,6 @@
 # The Human 20% - Final Execution Protocol
 
-The PhantomPatch codebase provides the infrastructure and the automation (the 80%). The remaining 20% requires human execution in the real world to prove the system works. Follow these exact steps to generate the metrics for your final university report.
+The KEVIDENCE codebase provides the infrastructure and the automation (the 80%). The remaining 20% requires human execution in the real world to prove the system works. Follow these exact steps to generate the metrics for your final university report.
 
 ## Step 1: Initial Setup & Data Fetching
 1. Get a free Gemini API key (or OpenAI/Anthropic).

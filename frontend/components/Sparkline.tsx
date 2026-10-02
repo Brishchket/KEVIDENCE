@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { LineChart, Line, ResponsiveContainer, Tooltip } from "recharts";
 
 interface SparklineProps {
@@ -12,8 +12,8 @@ export default function Sparkline({ data }: SparklineProps) {
       <LineChart data={data} margin={{ top: 2, right: 2, left: 2, bottom: 2 }}>
         <Tooltip
           contentStyle={{ background: "#0D1A16", border: "none", borderRadius: 8, fontSize: 11, color: "#fff" }}
-          formatter={(v: number) => [v, "CVEs"]}
-          labelFormatter={(l: string) => l}
+          formatter={(v: any) => [v, "CVEs"]}
+          labelFormatter={(l: any) => String(l)}
         />
         <Line
           type="monotone"

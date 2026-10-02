@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { VendorEntry } from "@/lib/api";
 import { priorityColor } from "@/lib/utils";
 
@@ -129,7 +129,7 @@ export default function RadialGauge({ total, pctBelowMedium, vendors }: RadialGa
         {vendors.slice(0, 8).map((v, i) => {
           const angle = ARC_POSITIONS[i] ?? -90;
           const pos = polarToCartesian(cx, cy, outerR + 40, angle);
-          const clr = priorityColor(v.worst_label);
+          const clr = priorityColor(v.worst_label || "LOW");
           const label = v.vendor.length > 9 ? v.vendor.slice(0, 8) + "…" : v.vendor;
           return (
             <g key={v.vendor}>
