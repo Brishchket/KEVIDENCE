@@ -1,4 +1,4 @@
-# PhantomPatch – Implementation Progress
+# KEVIDENCE – Implementation Progress
 
 ## Phase 1: Data Layer (Harden Ingestion)
 - [x] Config setup (`backend/app/config.py`) loading `.env`
@@ -47,7 +47,7 @@
 - [x] Next.js cybersecurity command center UI components
 - [x] Dashboard page (`/`) with KPI cards and CVE table
 - [x] Detail page (`/cve/[id]`) with audience tabs, sentence highlighting (green/red), tooltips, confidence badges
-- [x] Comparison page (`/compare`) contrasting Raw NVD vs. PhantomPatch
+- [x] Comparison page (`/compare`) contrasting Raw NVD vs. KEVIDENCE
 - [x] Evaluation summary page (`/evaluation`)
 - [x] Blinded survey UI (`/survey`)
 - [x] API utility (`frontend/lib/api.ts`)

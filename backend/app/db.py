@@ -314,6 +314,7 @@ async def get_cves(
     priority: Optional[str] = None,
     in_kev: Optional[bool] = None,
     min_epss: Optional[float] = None,
+    severity: Optional[str] = None,
     search: Optional[str] = None,
     sort_by: str = "priority_score",
     sort_dir: str = "DESC",
@@ -333,9 +334,13 @@ async def get_cves(
     if min_epss is not None:
         conditions.append("epss_score >= ?")
         params.append(min_epss)
+    if severity:
+        conditions.append("severity = ?")
+        params.append(severity.upper())
     if search:
-        conditions.append("(cve_id LIKE ? OR description LIKE ?)")
-        params.extend([f"%{search}%", f"%{search}%"])
+        search_pattern = f"%{search}%"
+        conditions.append("(cve_id LIKE ? OR description LIKE ? OR vendors LIKE ? OR products LIKE ?)")
+        params.extend([search_pattern, search_pattern, search_pattern, search_pattern])
 
     where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
 

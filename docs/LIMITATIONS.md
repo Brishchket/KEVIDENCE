@@ -1,6 +1,6 @@
 # System Limitations & Constraints
 
-PhantomPatch uses a deterministic verifier to constrain LLM hallucinations. While effective, the approach has several known edge cases and limitations.
+KEVIDENCE uses a deterministic verifier to constrain LLM hallucinations. While effective, the approach has several known edge cases and limitations.
 
 ## Verifier Limitations
 
@@ -19,7 +19,7 @@ PhantomPatch uses a deterministic verifier to constrain LLM hallucinations. Whil
 ## Pipeline Limitations
 
 1. **Circular KEV Scoring:**
-   The KEV list is a boolean flag that heavily impacts the PhantomPatch priority score (40% weight). Measuring KEV recall on the final priority score is inherently circular. We address this in the evaluation harness by including a "KEV-ablated" ranking condition.
+   The KEV list is a boolean flag that heavily impacts the KEVIDENCE priority score (40% weight). Measuring KEV recall on the final priority score is inherently circular. We address this in the evaluation harness by including a "KEV-ablated" ranking condition.
 
 2. **CPU Bound Verification:**
    The verifier runs locally using PyTorch (CPU-only). Processing a large batch of narratives (e.g., 600 CVEs x 3 audiences = 1800 narratives) takes significant time locally.

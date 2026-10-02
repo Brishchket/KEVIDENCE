@@ -1,4 +1,4 @@
-﻿import { ArrowUpRight, Monitor, Server, Laptop } from "lucide-react";
+import { ArrowUpRight, Monitor, Server, Laptop } from "lucide-react";
 import { VendorsData } from "@/lib/api";
 import { priorityColor } from "@/lib/utils";
 
@@ -21,7 +21,7 @@ export default function VendorsCard({ data }: { data: VendorsData }) {
               <Icon size={16} className="text-[#5A6B62]" />
               <div 
                 className="w-2 h-2 rounded-sm"
-                style={{ backgroundColor: priorityColor(v.worst_label) }}
+                style={{ backgroundColor: priorityColor(v.worst_label || "LOW") }}
               />
               <span className="text-[13px] font-medium text-[#1C2B27] truncate">
                 {v.vendor}

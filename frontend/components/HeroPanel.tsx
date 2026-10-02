@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { useState } from "react";
 import { ArrowLeft, ChevronDown, MoreHorizontal } from "lucide-react";
 import { SummaryData, VendorsData, FeedData } from "@/lib/api";
@@ -110,7 +110,7 @@ export default function HeroPanel({
               <span className="text-[#8A9E95] text-[13px]">Total</span>
             </div>
             <div className="mt-2 w-full">
-              <Sparkline data={summary.trend} />
+              <Sparkline data={summary.trend || []} />
             </div>
           </div>
 
@@ -141,8 +141,8 @@ export default function HeroPanel({
         <div className="flex items-center justify-center min-h-[200px]">
           <RadialGauge
             total={summary.total}
-            pctBelowMedium={summary.pct_below_medium}
-            vendors={vendors.vendors}
+            pctBelowMedium={summary.pct_below_medium || 0}
+            vendors={vendors.vendors || []}
           />
         </div>
 
