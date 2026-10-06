@@ -5,11 +5,18 @@ import { usePathname } from "next/navigation";
 import { Shield, FileText, Sun, Moon } from "lucide-react";
 import { APP_NAME, APP_DESCRIPTOR } from "@/lib/constants";
 import { useTheme } from "./ThemeProvider";
+import LiveIndicator from "./LiveIndicator";
+import { useLiveFeedContext } from "./LiveFeedContext";
+import { useSyncStatus } from "@/lib/useSyncStatus";
 
 export default function Navbar() {
   const pathname = usePathname();
   const { theme, toggleTheme } = useTheme();
   const [currentHash, setCurrentHash] = useState("");
+
+  // Use shared live feed context (single SSE connection for the app)
+  const { connectionState } = useLiveFeedContext();
+  const syncStatus = useSyncStatus(30_000);
 
   useEffect(() => {
     // Sync hash on mount and on hashchange
@@ -123,8 +130,10 @@ export default function Navbar() {
             </Link>
           </nav>
 
-          {/* Right Actions: Research Survey & Global Theme Toggle */}
+          {/* Right Actions: LIVE indicator, Research Survey & Global Theme Toggle */}
           <div className="flex items-center gap-3">
+            {/* LIVE / Sync Status Indicator */}
+            <LiveIndicator connectionState={connectionState} syncStatus={syncStatus} />
             {/* Global Light / Dark Theme Toggle */}
             <button
               type="button"

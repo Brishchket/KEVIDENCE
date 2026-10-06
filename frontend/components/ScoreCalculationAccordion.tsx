@@ -145,45 +145,90 @@ export default function ScoreCalculationAccordion({ evidence }: ScoreCalculation
         >
           <span className="flex items-center gap-2">
             <Calculator size={16} className="text-[#ED7D24]" />
-            How is this calculated? (Mathematical Scoring Model)
+            How is this calculated?
+            <span className="ml-2 font-normal text-slate-400 group relative">
+              About this score ⓘ
+              <div className="absolute bottom-full mb-2 hidden group-hover:block w-72 p-3 bg-slate-800 text-slate-200 text-[10px] rounded shadow-xl z-50 normal-case font-sans border border-slate-700">
+                <p className="font-bold mb-1 border-b border-slate-600 pb-1">Primary Research Basis</p>
+                <p className="mb-2">N. Shimizu and M. Hashimoto, "Vulnerability Management Chaining: An Integrated Framework for Efficient Cybersecurity Risk Prioritization," IEEE Access, vol. 14, pp. 31407-31424, 2026, doi:10.1109/ACCESS.2026.3665768.</p>
+                <p className="font-bold mb-1 border-b border-slate-600 pb-1">Supporting</p>
+                <ul className="list-disc pl-3 space-y-1">
+                  <li>P. Mell, K. Scarfone, S. Romanosky, "Common Vulnerability Scoring System," IEEE Security & Privacy, 2006.</li>
+                  <li>J. M. Spring et al., "Time to Change the CVSS?," IEEE Security & Privacy 19(2), 2021.</li>
+                  <li>J. Jacobs et al., "Enhancing Vulnerability Prioritization: Data-Driven Exploit Predictions with Community-Driven Insights," IEEE EuroS&PW 2023.</li>
+                  <li>J. Jacobs et al., "Exploit Prediction Scoring System (EPSS)," ACM Digital Threats: Research and Practice 2(3), 2021.</li>
+                </ul>
+                <p className="mt-2 pt-2 border-t border-slate-600 italic">Note: Thresholds from arXiv 2506.01220v3; final IEEE figures may differ. The continuous intra-tier score is our design.</p>
+              </div>
+            </span>
           </span>
-          {isOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+          <div className="flex items-center gap-3">
+             <span className="text-[10px] text-slate-400 font-normal">{evidence?.priority?.score_model || "weighted_v1"} (v{evidence?.priority?.score_version || "1.0.0"})</span>
+             {isOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+          </div>
         </button>
 
         {isOpen && (
           <div className="mt-4 p-5 rounded-2xl bg-slate-900 dark:bg-[#0B1120] text-slate-100 text-xs space-y-4 font-mono shadow-inner border border-slate-800 dark:border-[#273449]">
-            <div className="text-slate-400 text-[11px] pb-2 border-b border-slate-800 dark:border-[#273449]">
-              priority_score = (W_cvss * (cvss / 10)) + (W_epss * epss) + (W_kev * in_kev)
-            </div>
+            
+            {breakdown.gates ? (
+              // VMC Model
+              <>
+                <div className="text-slate-400 text-[11px] pb-2 border-b border-slate-800 dark:border-[#273449]">
+                   VMC Decision Tree (2-Stage Filter)
+                </div>
+                <div className="space-y-2">
+                   {breakdown.gates.map((g: any, i: number) => (
+                      <div key={i} className="flex items-center justify-between">
+                         <span className="text-slate-300">&bull; {g.name}:</span>
+                         <span className={g.passed ? "text-emerald-400 font-bold" : "text-rose-400 font-bold"}>
+                            {g.passed ? "PASSED" : "FAILED"}
+                         </span>
+                      </div>
+                   ))}
+                   <div className="mt-2 pl-4 border-l-2 border-slate-700 space-y-1">
+                      {breakdown.decision_path?.map((pathStr: string, i: number) => (
+                         <div key={i} className="text-[10px] text-slate-400">{pathStr}</div>
+                      ))}
+                   </div>
+                </div>
+              </>
+            ) : (
+              // Legacy Model
+              <>
+                <div className="text-slate-400 text-[11px] pb-2 border-b border-slate-800 dark:border-[#273449]">
+                  priority_score = (W_cvss * (cvss / 10)) + (W_epss * epss) + (W_kev * in_kev)
+                </div>
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-300">
+                      &bull; {SCORING_WEIGHTS.cvss.label} ({SCORING_WEIGHTS.cvss.percentage}):
+                    </span>
+                    <span className="text-emerald-400 font-bold">
+                      0.30 &times; {cvssNorm.toFixed(3)} = +{Number(cvssContrib).toFixed(3)}
+                    </span>
+                  </div>
 
-            <div className="space-y-2.5">
-              <div className="flex items-center justify-between">
-                <span className="text-slate-300">
-                  &bull; {SCORING_WEIGHTS.cvss.label} ({SCORING_WEIGHTS.cvss.percentage}):
-                </span>
-                <span className="text-emerald-400 font-bold">
-                  0.30 &times; {cvssNorm.toFixed(3)} = +{Number(cvssContrib).toFixed(3)}
-                </span>
-              </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-300">
+                      &bull; {SCORING_WEIGHTS.epss.label} ({SCORING_WEIGHTS.epss.percentage}):
+                    </span>
+                    <span className="text-emerald-400 font-bold">
+                      0.30 &times; {epssProb.toFixed(3)} = +{Number(epssContrib).toFixed(3)}
+                    </span>
+                  </div>
 
-              <div className="flex items-center justify-between">
-                <span className="text-slate-300">
-                  &bull; {SCORING_WEIGHTS.epss.label} ({SCORING_WEIGHTS.epss.percentage}):
-                </span>
-                <span className="text-emerald-400 font-bold">
-                  0.30 &times; {epssProb.toFixed(3)} = +{Number(epssContrib).toFixed(3)}
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <span className="text-slate-300">
-                  &bull; {SCORING_WEIGHTS.kev.label} ({SCORING_WEIGHTS.kev.percentage}):
-                </span>
-                <span className="text-emerald-400 font-bold">
-                  0.40 &times; {inKev ? "1.000" : "0.000"} = +{Number(kevContrib).toFixed(3)}
-                </span>
-              </div>
-            </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-300">
+                      &bull; {SCORING_WEIGHTS.kev.label} ({SCORING_WEIGHTS.kev.percentage}):
+                    </span>
+                    <span className="text-emerald-400 font-bold">
+                      0.40 &times; {inKev ? "1.000" : "0.000"} = +{Number(kevContrib).toFixed(3)}
+                    </span>
+                  </div>
+                </div>
+              </>
+            )}
 
             <div className="pt-3 border-t border-slate-800 dark:border-[#273449] flex items-center justify-between text-sm">
               <span className="font-bold text-white uppercase tracking-wider">Final Composite Score:</span>

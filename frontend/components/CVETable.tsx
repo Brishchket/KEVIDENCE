@@ -3,6 +3,7 @@ import React, { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { fetcher } from "@/lib/api";
 import { PriorityBadge } from "./Badges";
+import DownloadReportButton from "./DownloadReportButton";
 import { Search, Filter, RotateCcw, ChevronRight, ShieldAlert, Check, ArrowUpDown, ChevronLeft } from "lucide-react";
 import { INDUSTRIES } from "@/lib/constants";
 
@@ -78,12 +79,17 @@ export function generateWhyString(cve: CVEItem): string {
 }
 
 import { useTheme } from "./ThemeProvider";
+import type { LiveEvent } from "@/lib/useLiveFeed";
 
 interface CVETableProps {
   theme?: "light" | "dark";
+  /** Live events from the SSE feed — used to highlight changed rows */
+  liveEvents?: LiveEvent[];
+  /** Called when the user dismisses the pending pill */
+  onClearPending?: () => void;
 }
 
-export default function CVETable({ theme: propTheme }: CVETableProps) {
+export default function CVETable({ theme: propTheme, liveEvents = [], onClearPending }: CVETableProps) {
   const { theme: contextTheme } = useTheme();
   const theme = propTheme || contextTheme || "light";
   const isDark = theme === "dark";
@@ -91,6 +97,32 @@ export default function CVETable({ theme: propTheme }: CVETableProps) {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [isPending, startTransition] = useTransition();
+
+  // Track CVE IDs that were recently updated — cleared after animation
+  const [highlightedIds, setHighlightedIds] = useState<Set<string>>(new Set());
+
+  // When liveEvents changes, highlight affected rows already visible
+  useEffect(() => {
+    if (!liveEvents || liveEvents.length === 0) return;
+    const newIds = liveEvents
+      .filter((e) => e.cve_id)
+      .map((e) => e.cve_id);
+    if (newIds.length === 0) return;
+    setHighlightedIds((prev) => {
+      const next = new Set(prev);
+      newIds.forEach((id) => next.add(id));
+      return next;
+    });
+    // Fade out highlight after 4 seconds
+    const t = setTimeout(() => {
+      setHighlightedIds((prev) => {
+        const next = new Set(prev);
+        newIds.forEach((id) => next.delete(id));
+        return next;
+      });
+    }, 4_000);
+    return () => clearTimeout(t);
+  }, [liveEvents]);
 
   // Filter States
   const [searchInput, setSearchInput] = useState("");
@@ -373,11 +405,18 @@ export default function CVETable({ theme: propTheme }: CVETableProps) {
               ) : (
                 cves.map((cve) => {
                   const whyText = generateWhyString(cve);
+                  const isHighlighted = highlightedIds.has(cve.cve_id);
                   return (
                     <tr
                       key={cve.cve_id}
                       className={`transition-colors group ${
-                        isDark ? "hover:bg-slate-800/60" : "hover:bg-slate-50/80"
+                        isHighlighted
+                          ? isDark
+                            ? "bg-emerald-950/30 border-l-2 border-l-emerald-500"
+                            : "bg-emerald-50/60 border-l-2 border-l-emerald-500"
+                          : isDark
+                          ? "hover:bg-slate-800/60"
+                          : "hover:bg-slate-50/80"
                       }`}
                     >
                       {/* CVE ID */}
@@ -445,17 +484,20 @@ export default function CVETable({ theme: propTheme }: CVETableProps) {
 
                       {/* Actions */}
                       <td className="px-5 py-4 text-right whitespace-nowrap">
-                        <Link
-                          href={`/cve/${cve.cve_id}`}
-                          className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-2xs ${
-                            isDark
-                              ? "bg-slate-800 text-slate-200 hover:bg-[#ED7D24] hover:text-white border border-slate-700"
-                              : "text-gray-700 bg-gray-100 hover:bg-[#ED7D24] hover:text-white"
-                          }`}
-                        >
-                          View Details
-                          <ChevronRight size={13} />
-                        </Link>
+                        <div className="inline-flex items-center gap-1.5">
+                          <DownloadReportButton cveId={cve.cve_id} variant="icon" />
+                          <Link
+                            href={`/cve/${cve.cve_id}`}
+                            className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-2xs ${
+                              isDark
+                                ? "bg-slate-800 text-slate-200 hover:bg-[#ED7D24] hover:text-white border border-slate-700"
+                                : "text-gray-700 bg-gray-100 hover:bg-[#ED7D24] hover:text-white"
+                            }`}
+                          >
+                            View Details
+                            <ChevronRight size={13} />
+                          </Link>
+                        </div>
                       </td>
                     </tr>
                   );

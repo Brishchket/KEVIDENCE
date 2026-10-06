@@ -165,7 +165,7 @@ class TestMockLLM:
         evidence = _make_evidence()
         import json
         ev_json = evidence.model_dump_json(indent=2)
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             client.generate(
                 "You are a... AUDIENCE: Business Manager...",
                 f"Write a business manager narrative.\nEVIDENCE JSON:\n{ev_json}"
@@ -178,7 +178,7 @@ class TestMockLLM:
         client = MockLLMClient()
         evidence = _make_evidence()
         ev_json = evidence.model_dump_json(indent=2)
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             client.generate(
                 "AUDIENCE: Security Analyst",
                 f"Write a security analyst narrative.\nEVIDENCE JSON:\n{ev_json}"
@@ -190,7 +190,7 @@ class TestMockLLM:
         client = MockLLMClient()
         evidence = _make_evidence()
         ev_json = evidence.model_dump_json(indent=2)
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             client.generate(
                 "AUDIENCE: IT Administrator",
                 f"Write an IT administrator narrative.\nEVIDENCE JSON:\n{ev_json}"
@@ -203,7 +203,7 @@ class TestMockLLM:
         client = MockLLMClient(inject_unsupported=True)
         evidence = _make_evidence()
         ev_json = evidence.model_dump_json(indent=2)
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             client.generate(
                 "AUDIENCE: Business Manager",
                 f"Write narrative.\nEVIDENCE JSON:\n{ev_json}"

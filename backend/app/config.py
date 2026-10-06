@@ -34,18 +34,51 @@ NVD_DATE_WINDOW_DAYS: int = 120  # NVD caps date range per request
 # ── EPSS ─────────────────────────────────────────────────────────────────────
 
 EPSS_BASE_URL: str = "https://api.first.org/data/v1/epss"
-EPSS_BATCH_SIZE: int = 100
+EPSS_BATCH_SIZE: int = int(os.getenv("EPSS_BATCH_SIZE", "100"))
 
 # ── KEV ──────────────────────────────────────────────────────────────────────
 
 KEV_URL: str = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
 
+# ── Realtime / Continuous Polling ─────────────────────────────────────────────
+
+# NVD delta loop: poll interval in seconds.
+# NVD API best practice: with key ≤50 req/30s; without key ≤5 req/30s.
+# A 120s poll is safe and won't burn the rate limit.
+NVD_POLL_INTERVAL: int = int(os.getenv("NVD_POLL_INTERVAL", "120"))
+
+# KEV polling interval in seconds.  CISA doesn't publish more than once/day;
+# 300s (5 min) is fast enough to catch additions quickly while being cheap.
+KEV_POLL_INTERVAL: int = int(os.getenv("KEV_POLL_INTERVAL", "300"))
+
+# EPSS updates once a day (around UTC midnight).  Poll every 3600s (1 hour)
+# to catch it promptly without hammering the endpoint.
+EPSS_POLL_INTERVAL: int = int(os.getenv("EPSS_POLL_INTERVAL", "3600"))
+
+# SSE heartbeat interval in seconds
+SSE_HEARTBEAT_INTERVAL: int = int(os.getenv("SSE_HEARTBEAT_INTERVAL", "15"))
+
+# Max number of recent events to keep in the in-process pub/sub buffer
+SSE_MAX_BUFFER: int = int(os.getenv("SSE_MAX_BUFFER", "500"))
+
+# Auto-narrate newly arrived CRITICAL/HIGH CVEs in background
+AUTO_NARRATE_NEW: bool = os.getenv("AUTO_NARRATE_NEW", "false").lower() in ("true", "1", "yes")
+AUTO_NARRATE_RATE_LIMIT: int = int(os.getenv("AUTO_NARRATE_RATE_LIMIT", "5"))  # max per cycle
+
 # ── Scoring ──────────────────────────────────────────────────────────────────
+
+SCORING_MODEL: str = os.getenv("SCORING_MODEL", "weighted_v1")
 
 CVSS_WEIGHT: float = float(os.getenv("CVSS_WEIGHT", "0.3"))
 EPSS_WEIGHT: float = float(os.getenv("EPSS_WEIGHT", "0.3"))
 KEV_WEIGHT: float = float(os.getenv("KEV_WEIGHT", "0.4"))
 CVSS_MAX: float = 10.0
+
+# VMC Model Specific
+VMC_EPSS_THRESHOLD: float = float(os.getenv("VMC_EPSS_THRESHOLD", "0.088"))
+VMC_CVSS_THRESHOLD: float = float(os.getenv("VMC_CVSS_THRESHOLD", "7.0"))
+VMC_TIEBREAK_EPSS_W: float = float(os.getenv("VMC_TIEBREAK_EPSS_W", "0.7"))
+VMC_UNKNOWN_CVSS: str = os.getenv("VMC_UNKNOWN_CVSS", "escalate")
 
 THRESHOLD_CRITICAL: float = float(os.getenv("THRESHOLD_CRITICAL", "0.75"))
 THRESHOLD_HIGH: float = float(os.getenv("THRESHOLD_HIGH", "0.50"))

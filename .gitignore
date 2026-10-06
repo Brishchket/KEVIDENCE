@@ -38,9 +38,6 @@ next-env.d.ts
 # Python cache
 __pycache__/
 *.py[cod]
-
-# Environment secrets
-.env
-
-# Next.js
-.next/
+*.db
+reports/
+backend/reports/

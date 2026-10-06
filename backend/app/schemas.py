@@ -38,10 +38,24 @@ class AffectedDetail(BaseModel):
 
 
 # ── Priority ─────────────────────────────────────────────────────────────────
+class PriorityComponent(BaseModel):
+    name: str
+    value: float
+    type: str
+
+
+class Gate(BaseModel):
+    name: str
+    passed: bool
+
+
 class PriorityBreakdown(BaseModel):
     cvss_contribution: float = 0.0
     epss_contribution: float = 0.0
     kev_contribution: float = 0.0
+    components: list[PriorityComponent] = Field(default_factory=list)
+    gates: Optional[list[Gate]] = None
+    decision_path: Optional[list[str]] = None
 
 
 class PriorityDetail(BaseModel):

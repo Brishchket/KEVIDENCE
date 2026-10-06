@@ -1,8 +1,9 @@
 "use client";
-import React from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import CVETable from "@/components/CVETable";
 import TopRiskDrivers from "@/components/TopRiskDrivers";
 import LastUpdatedPanel from "@/components/LastUpdatedPanel";
+import ActivityTicker from "@/components/ActivityTicker";
 import {
   ShieldAlert,
   AlertTriangle,
@@ -12,6 +13,9 @@ import {
   Layers,
 } from "lucide-react";
 import { useTheme } from "./ThemeProvider";
+import { useLiveFeedContext } from "./LiveFeedContext";
+import { LiveEvent } from "@/lib/useLiveFeed";
+import { fetcher } from "@/lib/api";
 
 interface DashboardClientProps {
   stats: {
@@ -23,17 +27,60 @@ interface DashboardClientProps {
     kev_count?: number;
     parse_rate?: number;
     last_updated?: {
-      nvd?: string;
-      epss?: string;
-      kev?: string;
+      nvd?: string | null;
+      epss?: string | null;
+      kev?: string | null;
     };
     risk_drivers?: any;
   };
 }
 
-export default function DashboardClient({ stats }: DashboardClientProps) {
+const DEBOUNCE_MS = 2_000;
+
+export default function DashboardClient({ stats: initialStats }: DashboardClientProps) {
   const { theme } = useTheme();
   const isDark = theme === "dark";
+
+  // Live stats — starts from SSR-fetched initial stats
+  const [stats, setStats] = useState(initialStats);
+  const [pendingEvents, setPendingEvents] = useState<LiveEvent[]>([]);
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Debounced stats refresh — fetches /api/stats after a quiet period
+  const refreshStats = useCallback(() => {
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(async () => {
+      try {
+        const fresh = await fetcher("/stats", { cache: "no-store" });
+        setStats(fresh);
+      } catch {
+        // silent — keep stale stats rather than crashing
+      }
+    }, DEBOUNCE_MS);
+  }, []);
+
+  // Consume shared live feed context (one SSE connection for the app)
+  const { recentEvents } = useLiveFeedContext();
+
+  // React to new events arriving via context
+  useEffect(() => {
+    if (!recentEvents.length) return;
+    const latestEvent = recentEvents[0]; // newest is first
+    if (
+      ["CVE_ADDED", "CVE_MODIFIED", "KEV_ADDED", "PRIORITY_CHANGE"].includes(
+        latestEvent.event_type
+      )
+    ) {
+      setPendingEvents((prev) => [latestEvent, ...prev]);
+      refreshStats();
+    }
+  // Only fire when a new event arrives (recentEvents[0] changes)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recentEvents]);
+
+  // Expose pending count to CVETable via a callback so table can show pill
+  const pendingCount = pendingEvents.length;
+  const clearPending = useCallback(() => setPendingEvents([]), []);
 
   const kpiCards = [
     {
@@ -169,6 +216,9 @@ export default function DashboardClient({ stats }: DashboardClientProps) {
         <LastUpdatedPanel lastUpdated={stats.last_updated} parseRate={stats.parse_rate} theme={theme} />
       </div>
 
+      {/* Live Activity Ticker */}
+      <ActivityTicker events={recentEvents} />
+
       {/* CVE Explorer / Table Section */}
       <div className="space-y-3 pt-2">
         <div className="flex items-center justify-between">
@@ -180,8 +230,26 @@ export default function DashboardClient({ stats }: DashboardClientProps) {
               Filter and explore scored CVE records with transparent risk rationales.
             </p>
           </div>
+          {/* "N new updates" pill */}
+          {pendingCount > 0 && (
+            <button
+              onClick={clearPending}
+              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border animate-bounce ${
+                isDark
+                  ? "bg-emerald-950/60 text-emerald-300 border-emerald-800"
+                  : "bg-emerald-50 text-emerald-700 border-emerald-200"
+              }`}
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+              {pendingCount} new update{pendingCount > 1 ? "s" : ""}
+            </button>
+          )}
         </div>
-        <CVETable theme={theme} />
+        <CVETable
+          theme={theme}
+          liveEvents={pendingEvents}
+          onClearPending={clearPending}
+        />
       </div>
     </div>
   );

@@ -8,7 +8,7 @@ from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
 
-from app.db import get_cve, get_cves, get_kev, get_narratives, scalar
+from app.db import get_cve, get_cves, get_kev, get_narratives, query
 from app.evidence.builder import build_evidence
 from app.narrative.generator import generate_narrative, get_llm_client
 from app.schemas import Evidence
@@ -76,34 +76,67 @@ async def get_cve_narratives(cve_id: str):
 
 @router.get("/stats")
 async def get_stats():
-    total = (await scalar("SELECT COUNT(*) FROM cves")) or 0
-    critical = (await scalar("SELECT COUNT(*) FROM cves WHERE priority_label='CRITICAL'")) or 0
-    high = (await scalar("SELECT COUNT(*) FROM cves WHERE priority_label='HIGH'")) or 0
-    medium = (await scalar("SELECT COUNT(*) FROM cves WHERE priority_label='MEDIUM'")) or 0
-    low = (await scalar("SELECT COUNT(*) FROM cves WHERE priority_label='LOW'")) or 0
-    kev_count = (await scalar("SELECT COUNT(*) FROM cves WHERE in_kev = 1")) or 0
-    high_cvss_count = (await scalar("SELECT COUNT(*) FROM cves WHERE cvss_base_score >= 7.0")) or 0
-    high_epss_count = (await scalar("SELECT COUNT(*) FROM cves WHERE epss_score >= 0.05")) or 0
-    network_exposed_count = (await scalar("SELECT COUNT(*) FROM cves WHERE attack_vector = 'NETWORK' OR cvss_vector LIKE '%AV:N%'")) or 0
+    metrics = await query(
+        """
+        SELECT
+            COUNT(*) AS total,
+            COALESCE(SUM(priority_label = 'CRITICAL'), 0) AS critical,
+            COALESCE(SUM(priority_label = 'HIGH'), 0) AS high,
+            COALESCE(SUM(priority_label = 'MEDIUM'), 0) AS medium,
+            COALESCE(SUM(priority_label = 'LOW'), 0) AS low,
+            COALESCE(SUM(in_kev = 1), 0) AS kev_count,
+            COALESCE(SUM(cvss_base_score >= 7.0), 0) AS high_cvss_count,
+            COALESCE(SUM(epss_score >= 0.05), 0) AS high_epss_count,
+            COALESCE(SUM(attack_vector = 'NETWORK' OR cvss_vector LIKE '%AV:N%'), 0)
+                AS network_exposed_count,
+            COALESCE(AVG(CASE WHEN epss_score > 0 THEN epss_score END), 0.0)
+                AS mean_epss,
+            COALESCE((
+                SELECT AVG(faithfulness_score)
+                FROM narratives
+                WHERE faithfulness_score > 0
+            ), 0.0) AS mean_faith,
+            COALESCE((
+                SELECT parse_rate
+                FROM pipeline_runs
+                WHERE status = 'COMPLETE'
+                ORDER BY id DESC LIMIT 1
+            ), 100.0) AS parse_rate,
+            COALESCE(
+                (SELECT last_success_at FROM sync_state WHERE source = 'nvd'),
+                (SELECT ingested_at FROM cves WHERE ingested_at IS NOT NULL
+                 ORDER BY ingested_at DESC LIMIT 1)
+            ) AS latest_nvd,
+            COALESCE(
+                (SELECT last_success_at FROM sync_state WHERE source = 'epss'),
+                (SELECT fetched_at FROM epss WHERE fetched_at IS NOT NULL
+                 ORDER BY fetched_at DESC LIMIT 1)
+            ) AS latest_epss,
+            COALESCE(
+                (SELECT last_success_at FROM sync_state WHERE source = 'kev'),
+                (SELECT date_added FROM kev WHERE date_added IS NOT NULL
+                 ORDER BY date_added DESC LIMIT 1)
+            ) AS latest_kev
+        FROM cves
+        """
+    )
+    stats = metrics[0]
+    total = stats["total"] or 0
+    critical = stats["critical"] or 0
+    high = stats["high"] or 0
+    medium = stats["medium"] or 0
+    low = stats["low"] or 0
+    kev_count = stats["kev_count"] or 0
+    high_cvss_count = stats["high_cvss_count"] or 0
+    high_epss_count = stats["high_epss_count"] or 0
+    network_exposed_count = stats["network_exposed_count"] or 0
     asset_criticality_count = critical + high
-
-    mean_epss = await scalar("SELECT AVG(epss_score) FROM cves WHERE epss_score > 0", default=0.0)
-    mean_faith = await scalar(
-        "SELECT AVG(faithfulness_score) FROM narratives WHERE faithfulness_score > 0",
-        default=0.0,
-    )
-
-    # Parse rate from last pipeline run
-    from app.db import query
-    runs = await query(
-        "SELECT parse_rate, started_at, finished_at FROM pipeline_runs WHERE status='COMPLETE' ORDER BY id DESC LIMIT 1"
-    )
-    parse_rate = runs[0]["parse_rate"] if runs else 100.0
-    last_pipeline_time = runs[0]["finished_at"] if runs and runs[0].get("finished_at") else (runs[0]["started_at"] if runs else None)
-
-    latest_nvd = await scalar("SELECT ingested_at FROM cves WHERE ingested_at IS NOT NULL ORDER BY ingested_at DESC LIMIT 1")
-    latest_epss = await scalar("SELECT fetched_at FROM epss WHERE fetched_at IS NOT NULL ORDER BY fetched_at DESC LIMIT 1")
-    latest_kev = await scalar("SELECT date_added FROM kev WHERE date_added IS NOT NULL ORDER BY date_added DESC LIMIT 1")
+    mean_epss = stats["mean_epss"]
+    mean_faith = stats["mean_faith"]
+    parse_rate = stats["parse_rate"]
+    latest_nvd = stats["latest_nvd"]
+    latest_epss = stats["latest_epss"]
+    latest_kev = stats["latest_kev"]
 
     t = total if total > 0 else 1
     return {
@@ -117,9 +150,9 @@ async def get_stats():
         "mean_faithfulness": round(float(mean_faith or 0.0), 4),
         "parse_rate": parse_rate,
         "last_updated": {
-            "nvd": latest_nvd or last_pipeline_time or "2026-09-29T15:38:16+00:00",
-            "epss": latest_epss or "2026-09-29T15:38:13+00:00",
-            "kev": latest_kev or "2026-09-29",
+            "nvd": latest_nvd,
+            "epss": latest_epss,
+            "kev": latest_kev,
         },
         "risk_drivers": {
             "kev": {"count": kev_count, "percent": round((kev_count / t) * 100, 1)},
@@ -129,6 +162,7 @@ async def get_stats():
             "internet_exposure": {"count": network_exposed_count, "percent": round((network_exposed_count / t) * 100, 1)},
         }
     }
+
 
 
 @router.get("/compare/{cve_id}")

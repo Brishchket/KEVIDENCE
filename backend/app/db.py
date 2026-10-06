@@ -32,10 +32,12 @@ CREATE TABLE IF NOT EXISTS cves (
     published_date      TEXT,
     last_modified_date  TEXT,
     affected_cpes       TEXT DEFAULT '[]',
+    cpe_version_ranges  TEXT DEFAULT '[]',
     vendors             TEXT DEFAULT '[]',
     products            TEXT DEFAULT '[]',
     reference_urls      TEXT DEFAULT '[]',
     patch_references    TEXT DEFAULT '[]',
+    reference_tags      TEXT DEFAULT '{}',
     epss_score          REAL DEFAULT 0.0,
     epss_percentile     REAL,
     in_kev              INTEGER DEFAULT 0,
@@ -44,9 +46,36 @@ CREATE TABLE IF NOT EXISTS cves (
     priority_breakdown  TEXT DEFAULT '{}',
     missing_signals     TEXT DEFAULT '[]',
     reasons             TEXT DEFAULT '[]',
+    score_model         TEXT,
+    score_version       TEXT,
+    cvss_version        TEXT,
     ingested_at         TEXT
 )
 """
+
+CREATE_CWE = """
+CREATE TABLE IF NOT EXISTS cwe (
+    cwe_id       TEXT PRIMARY KEY,
+    name         TEXT,
+    description  TEXT,
+    consequences TEXT DEFAULT '[]',
+    mitigations  TEXT DEFAULT '[]',
+    fetched_at   TEXT
+)
+"""
+
+CREATE_REPORTS = """
+CREATE TABLE IF NOT EXISTS reports (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    cve_id       TEXT,
+    audience     TEXT DEFAULT 'executive',
+    content_json TEXT,
+    data_hash    TEXT,
+    pdf_blob     BLOB,
+    created_at   TEXT
+)
+"""
+
 
 CREATE_KEV = """
 CREATE TABLE IF NOT EXISTS kev (
@@ -137,10 +166,20 @@ CREATE TABLE IF NOT EXISTS pipeline_runs (
 )
 """
 
+CREATE_SYNC_STATE = """
+CREATE TABLE IF NOT EXISTS sync_state (
+    source              TEXT PRIMARY KEY,
+    last_success_at     TEXT,
+    last_cursor         TEXT,
+    last_error          TEXT,
+    consecutive_failures INTEGER DEFAULT 0
+)
+"""
+
 ALL_TABLES = [
     CREATE_CVES, CREATE_KEV, CREATE_EPSS, CREATE_NARRATIVES,
     CREATE_EVAL_RUNS, CREATE_SURVEY_RESPONSES, CREATE_EVENTS,
-    CREATE_PIPELINE_RUNS,
+    CREATE_PIPELINE_RUNS, CREATE_SYNC_STATE, CREATE_CWE, CREATE_REPORTS,
 ]
 
 
@@ -162,10 +201,15 @@ async def init_db() -> None:
             "vendors": "TEXT DEFAULT '[]'",
             "products": "TEXT DEFAULT '[]'",
             "patch_references": "TEXT DEFAULT '[]'",
+            "cpe_version_ranges": "TEXT DEFAULT '[]'",
+            "reference_tags": "TEXT DEFAULT '{}'",
             "epss_percentile": "REAL",
             "priority_breakdown": "TEXT DEFAULT '{}'",
             "missing_signals": "TEXT DEFAULT '[]'",
             "reasons": "TEXT DEFAULT '[]'",
+            "score_model": "TEXT",
+            "score_version": "TEXT",
+            "cvss_version": "TEXT",
         }
         for col_name, col_type in cve_columns_to_add.items():
             if col_name not in existing_cve_cols:
@@ -184,6 +228,13 @@ async def init_db() -> None:
             if col_name not in existing_run_cols:
                 logger.info("Migrating database: adding missing column '%s' to pipeline_runs table", col_name)
                 await db.execute(f"ALTER TABLE pipeline_runs ADD COLUMN {col_name} {col_type}")
+
+        # Check and migrate reports table columns
+        cur = await db.execute("PRAGMA table_info(reports)")
+        existing_report_cols = {row[1] for row in await cur.fetchall()}
+        if "pdf_blob" not in existing_report_cols:
+            logger.info("Migrating database: adding missing column 'pdf_blob' to reports table")
+            await db.execute("ALTER TABLE reports ADD COLUMN pdf_blob BLOB")
 
         await db.commit()
     logger.info("Database initialised at %s", DB_PATH)
@@ -221,6 +272,15 @@ async def execute(sql: str, params: tuple = ()) -> int:
 async def upsert_cve(record: dict[str, Any]) -> bool:
     """Insert or update a CVE record. Returns True if new insert."""
     now = datetime.now(timezone.utc).isoformat()
+
+    def json_value(field: str, default: str) -> str:
+        value = record.get(field)
+        if value is None:
+            return default
+        if isinstance(value, (list, dict)):
+            return json.dumps(value)
+        return value
+
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         existing = await db.execute(
@@ -234,10 +294,11 @@ async def upsert_cve(record: dict[str, Any]) -> bool:
             INSERT INTO cves (
                 cve_id, description, cvss_base_score, cvss_vector, severity,
                 attack_vector, cwe_ids, published_date, last_modified_date,
-                affected_cpes, vendors, products, reference_urls, patch_references,
-                epss_score, epss_percentile, in_kev, priority_score,
-                priority_label, priority_breakdown, missing_signals, reasons, ingested_at
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                affected_cpes, cpe_version_ranges, vendors, products, reference_urls, patch_references,
+                reference_tags, epss_score, epss_percentile, in_kev, priority_score,
+                priority_label, priority_breakdown, missing_signals, reasons,
+                score_model, score_version, cvss_version, ingested_at
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             ON CONFLICT(cve_id) DO UPDATE SET
                 description=excluded.description,
                 cvss_base_score=excluded.cvss_base_score,
@@ -247,10 +308,12 @@ async def upsert_cve(record: dict[str, Any]) -> bool:
                 cwe_ids=excluded.cwe_ids,
                 last_modified_date=excluded.last_modified_date,
                 affected_cpes=excluded.affected_cpes,
+                cpe_version_ranges=excluded.cpe_version_ranges,
                 vendors=excluded.vendors,
                 products=excluded.products,
                 reference_urls=excluded.reference_urls,
                 patch_references=excluded.patch_references,
+                reference_tags=excluded.reference_tags,
                 epss_score=excluded.epss_score,
                 epss_percentile=excluded.epss_percentile,
                 in_kev=excluded.in_kev,
@@ -259,6 +322,9 @@ async def upsert_cve(record: dict[str, Any]) -> bool:
                 priority_breakdown=excluded.priority_breakdown,
                 missing_signals=excluded.missing_signals,
                 reasons=excluded.reasons,
+                score_model=excluded.score_model,
+                score_version=excluded.score_version,
+                cvss_version=excluded.cvss_version,
                 ingested_at=excluded.ingested_at
             """,
             (
@@ -268,22 +334,27 @@ async def upsert_cve(record: dict[str, Any]) -> bool:
                 record.get("cvss_vector"),
                 record.get("severity"),
                 record.get("attack_vector"),
-                record.get("cwe_ids", "[]"),
+                json_value("cwe_ids", "[]"),
                 record.get("published_date"),
                 record.get("last_modified_date"),
-                record.get("affected_cpes", "[]"),
-                record.get("vendors", "[]"),
-                record.get("products", "[]"),
-                record.get("reference_urls", "[]"),
-                record.get("patch_references", "[]"),
+                json_value("affected_cpes", "[]"),
+                json_value("cpe_version_ranges", "[]"),
+                json_value("vendors", "[]"),
+                json_value("products", "[]"),
+                json_value("reference_urls", "[]"),
+                json_value("patch_references", "[]"),
+                json_value("reference_tags", "{}"),
                 record.get("epss_score", 0.0),
                 record.get("epss_percentile"),
                 1 if record.get("in_kev") else 0,
                 record.get("priority_score", 0.0),
                 record.get("priority_label", "LOW"),
-                json.dumps(record.get("priority_breakdown", {})),
-                json.dumps(record.get("missing_signals", [])),
-                json.dumps(record.get("reasons", [])),
+                json_value("priority_breakdown", "{}"),
+                json_value("missing_signals", "[]"),
+                json_value("reasons", "[]"),
+                record.get("score_model"),
+                record.get("score_version"),
+                record.get("cvss_version"),
                 now,
             ),
         )
@@ -363,7 +434,7 @@ async def get_cves(
 
 def _deserialize_json_fields(row: dict) -> None:
     """In-place deserialize JSON string fields."""
-    for field in ("cwe_ids", "affected_cpes", "vendors", "products",
+    for field in ("cwe_ids", "affected_cpes", "cpe_version_ranges", "vendors", "products",
                   "reference_urls", "patch_references", "reasons",
                   "missing_signals"):
         try:
@@ -372,13 +443,22 @@ def _deserialize_json_fields(row: dict) -> None:
                 row[field] = json.loads(val)
         except (json.JSONDecodeError, TypeError):
             row[field] = []
-    # Deserialize priority_breakdown
+    # Deserialize priority_breakdown and reference_tags
     try:
         bd = row.get("priority_breakdown")
         if isinstance(bd, str):
             row["priority_breakdown"] = json.loads(bd)
     except (json.JSONDecodeError, TypeError):
         row["priority_breakdown"] = {}
+
+    try:
+        rt = row.get("reference_tags")
+        if isinstance(rt, str):
+            row["reference_tags"] = json.loads(rt)
+        elif rt is None:
+            row["reference_tags"] = {}
+    except (json.JSONDecodeError, TypeError):
+        row["reference_tags"] = {}
 
 
 # ── KEV operations ───────────────────────────────────────────────────────────
@@ -614,6 +694,87 @@ async def _log_event(db: aiosqlite.Connection, event_type: str,
     )
 
 
+async def log_event(event_type: str, cve_id: str, detail: str) -> int:
+    """Public helper: insert an event and return its rowid."""
+    now = datetime.now(timezone.utc).isoformat()
+    return await execute(
+        "INSERT INTO events (event_type, cve_id, detail, created_at) VALUES (?,?,?,?)",
+        (event_type, cve_id, detail, now),
+    )
+
+
+async def get_recent_events(since_id: int = 0, limit: int = 100) -> list[dict]:
+    """Return recent events with id > since_id, newest first."""
+    rows = await query(
+        "SELECT * FROM events WHERE id > ? ORDER BY id DESC LIMIT ?",
+        (since_id, limit),
+    )
+    return rows
+
+
+# ── Sync state ───────────────────────────────────────────────────────────────
+
+async def get_sync_state(source: str) -> Optional[dict]:
+    """Return the sync_state row for a source, or None if not present."""
+    rows = await query("SELECT * FROM sync_state WHERE source = ?", (source,))
+    return rows[0] if rows else None
+
+
+async def get_all_sync_states() -> list[dict]:
+    """Return all sync_state rows."""
+    return await query("SELECT * FROM sync_state ORDER BY source")
+
+
+async def upsert_sync_state(
+    source: str,
+    *,
+    last_success_at: Optional[str] = None,
+    last_cursor: Optional[str] = None,
+    last_error: Optional[str] = None,
+    consecutive_failures: Optional[int] = None,
+) -> None:
+    """Upsert a sync_state record, leaving unspecified fields unchanged."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        cur = await db.execute("SELECT * FROM sync_state WHERE source = ?", (source,))
+        existing = await cur.fetchone()
+
+        if existing is None:
+            await db.execute(
+                """INSERT INTO sync_state
+                   (source, last_success_at, last_cursor, last_error, consecutive_failures)
+                   VALUES (?, ?, ?, ?, ?)""",
+                (
+                    source,
+                    last_success_at,
+                    last_cursor,
+                    last_error,
+                    consecutive_failures if consecutive_failures is not None else 0,
+                ),
+            )
+        else:
+            fields = []
+            vals: list[Any] = []
+            if last_success_at is not None:
+                fields.append("last_success_at=?")
+                vals.append(last_success_at)
+            if last_cursor is not None:
+                fields.append("last_cursor=?")
+                vals.append(last_cursor)
+            if last_error is not None:
+                fields.append("last_error=?")
+                vals.append(last_error)
+            if consecutive_failures is not None:
+                fields.append("consecutive_failures=?")
+                vals.append(consecutive_failures)
+            if fields:
+                vals.append(source)
+                await db.execute(
+                    f"UPDATE sync_state SET {', '.join(fields)} WHERE source = ?", vals
+                )
+        await db.commit()
+
+
 # ── Stats ────────────────────────────────────────────────────────────────────
 
 async def get_cve_count() -> int:
@@ -622,3 +783,155 @@ async def get_cve_count() -> int:
 
 async def has_data() -> bool:
     return (await get_cve_count()) > 0
+
+
+# ── CWE operations ───────────────────────────────────────────────────────────
+
+async def get_cwe(cwe_id: str) -> Optional[dict]:
+    """Retrieve a cached CWE definition."""
+    rows = await query("SELECT * FROM cwe WHERE cwe_id = ?", (cwe_id,))
+    if not rows:
+        return None
+    r = rows[0]
+    for k in ("consequences", "mitigations"):
+        if isinstance(r.get(k), str):
+            try:
+                r[k] = json.loads(r[k])
+            except (json.JSONDecodeError, TypeError):
+                r[k] = []
+    return r
+
+
+async def upsert_cwe(record: dict[str, Any]) -> None:
+    """Insert or update a CWE catalog entry."""
+    now = datetime.now(timezone.utc).isoformat()
+    consequences = record.get("consequences", [])
+    if isinstance(consequences, list):
+        consequences = json.dumps(consequences)
+    mitigations = record.get("mitigations", [])
+    if isinstance(mitigations, list):
+        mitigations = json.dumps(mitigations)
+
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            """
+            INSERT INTO cwe (cwe_id, name, description, consequences, mitigations, fetched_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(cwe_id) DO UPDATE SET
+                name=excluded.name,
+                description=excluded.description,
+                consequences=excluded.consequences,
+                mitigations=excluded.mitigations,
+                fetched_at=excluded.fetched_at
+            """,
+            (
+                record["cwe_id"],
+                record.get("name", ""),
+                record.get("description", ""),
+                consequences,
+                mitigations,
+                record.get("fetched_at", now),
+            ),
+        )
+        await db.commit()
+
+
+# ── Report operations ────────────────────────────────────────────────────────
+
+async def get_report(cve_id: str, audience: str = "executive") -> Optional[dict]:
+    """Retrieve saved report for a CVE and audience."""
+    rows = await query(
+        "SELECT * FROM reports WHERE cve_id = ? AND audience = ? ORDER BY id DESC LIMIT 1",
+        (cve_id, audience),
+    )
+    if not rows:
+        return None
+    r = rows[0]
+    if isinstance(r.get("content_json"), str):
+        try:
+            r["content"] = json.loads(r["content_json"])
+        except (json.JSONDecodeError, TypeError):
+            r["content"] = {}
+    return r
+
+
+async def get_report_pdf(
+    cve_id: str,
+    data_hash: str,
+    audience: str = "executive",
+) -> Optional[bytes]:
+    """Return a cached PDF only when it matches the current report evidence hash."""
+    rows = await query(
+        """
+        SELECT pdf_blob FROM reports
+        WHERE cve_id = ? AND audience = ? AND data_hash = ?
+        ORDER BY id DESC LIMIT 1
+        """,
+        (cve_id, audience, data_hash),
+    )
+    return rows[0].get("pdf_blob") if rows else None
+
+
+async def save_report_pdf(
+    cve_id: str,
+    data_hash: str,
+    pdf_blob: bytes,
+    audience: str = "executive",
+) -> None:
+    """Persist PDF bytes against an existing report with the same evidence hash."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        cur = await db.execute(
+            """
+            UPDATE reports SET pdf_blob = ?
+            WHERE id = (
+                SELECT id FROM reports
+                WHERE cve_id = ? AND audience = ? AND data_hash = ?
+                ORDER BY id DESC LIMIT 1
+            )
+            """,
+            (pdf_blob, cve_id, audience, data_hash),
+        )
+        if cur.rowcount == 0:
+            raise RuntimeError(
+                f"Cannot cache PDF for {cve_id}: matching report record was not found"
+            )
+        await db.commit()
+
+
+async def upsert_report(
+    cve_id: str,
+    content_json: str | dict,
+    data_hash: str,
+    audience: str = "executive",
+    pdf_blob: bytes | None = None,
+) -> int:
+    """Store the latest report and its optional PDF, replacing stale cached data."""
+    now = datetime.now(timezone.utc).isoformat()
+    raw_json = content_json if isinstance(content_json, str) else json.dumps(content_json)
+    async with aiosqlite.connect(DB_PATH) as db:
+        cur = await db.execute(
+            "SELECT id FROM reports WHERE cve_id = ? AND audience = ? ORDER BY id DESC LIMIT 1",
+            (cve_id, audience),
+        )
+        existing = await cur.fetchone()
+        if existing:
+            report_id = existing[0]
+            await db.execute(
+                """
+                UPDATE reports
+                SET content_json = ?, data_hash = ?, pdf_blob = ?, created_at = ?
+                WHERE id = ?
+                """,
+                (raw_json, data_hash, pdf_blob, now, report_id),
+            )
+        else:
+            cur = await db.execute(
+                """
+                INSERT INTO reports (cve_id, audience, content_json, data_hash, pdf_blob, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (cve_id, audience, raw_json, data_hash, pdf_blob, now),
+            )
+            report_id = cur.lastrowid or 0
+        await db.commit()
+        return report_id

@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { LiveFeedProvider } from "@/components/LiveFeedContext";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -27,7 +28,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="antialiased bg-[#F8F9FA] dark:bg-[#0B1120] text-gray-900 dark:text-[#F8FAFC] min-h-screen flex flex-col font-sans transition-colors duration-150">
         <ThemeProvider>
-          <Navbar />
+          <LiveFeedProvider>
+            <Navbar />
           <main className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full flex-grow">
             {children}
           </main>
@@ -41,6 +43,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               </span>
             </div>
           </footer>
+          </LiveFeedProvider>
         </ThemeProvider>
       </body>
     </html>

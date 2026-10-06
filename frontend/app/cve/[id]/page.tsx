@@ -4,6 +4,9 @@ import { fetcher } from "@/lib/api";
 import { PriorityBadge, SourceDataBadge } from "@/components/Badges";
 import NarrativeTabs from "@/components/NarrativeTabs";
 import ScoreCalculationAccordion from "@/components/ScoreCalculationAccordion";
+import CVEDetailLiveUpdater from "@/components/CVEDetailLiveUpdater";
+import DownloadReportButton from "@/components/DownloadReportButton";
+import ReportPreview from "@/components/ReportPreview";
 import { formatDate } from "@/lib/utils";
 import { ORG_CONTEXT, RECOMMENDED_ACTIONS } from "@/lib/constants";
 import {
@@ -29,11 +32,13 @@ export const dynamic = "force-dynamic";
 export default async function CVEDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
-  // 1. Fetch Evidence
-  let evidence: any;
-  try {
-    evidence = await fetcher(`/cves/${id}`, { cache: "no-store" });
-  } catch (e) {
+  // Load both API resources concurrently so the detail route waits for only one round trip.
+  const [evidenceResult, narrativesResult] = await Promise.allSettled([
+    fetcher(`/cves/${id}`, { cache: "no-store" }),
+    fetcher(`/cves/${id}/narratives`, { cache: "no-store" }),
+  ]);
+
+  if (evidenceResult.status === "rejected") {
     return (
       <div className="max-w-4xl mx-auto py-16 text-center space-y-4">
         <div className="w-16 h-16 rounded-full bg-red-100 dark:bg-red-950/60 text-red-600 dark:text-red-400 flex items-center justify-center mx-auto border dark:border-red-900/60">
@@ -52,13 +57,11 @@ export default async function CVEDetailPage({ params }: { params: Promise<{ id: 
     );
   }
 
-  // 2. Fetch Narratives
-  let narrativesData: any;
-  try {
-    narrativesData = await fetcher(`/cves/${id}/narratives`, { cache: "no-store" });
-  } catch (e) {
-    narrativesData = { narratives: [] };
-  }
+  const evidence = evidenceResult.value;
+  const narrativesData =
+    narrativesResult.status === "fulfilled"
+      ? narrativesResult.value
+      : { narratives: [] };
 
   const { narratives = [] } = narrativesData;
 
@@ -168,16 +171,19 @@ export default async function CVEDetailPage({ params }: { params: Promise<{ id: 
             </p>
           </div>
 
-          <div className="flex items-center gap-4 bg-gray-50 dark:bg-[#172033] p-4 rounded-2xl border border-gray-200 dark:border-[#273449] self-start lg:self-auto">
-            <div className="text-right">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-[#94A3B8] block">
-                Deterministic Priority
-              </span>
-              <div className="text-2xl sm:text-3xl font-extrabold font-mono text-gray-950 dark:text-[#F8FAFC]">
-                {priorityScore.toFixed(3)}
+          <div className="flex flex-wrap items-center gap-4 self-start lg:self-auto">
+            <DownloadReportButton cveId={id} variant="button" />
+            <div className="flex items-center gap-4 bg-gray-50 dark:bg-[#172033] p-4 rounded-2xl border border-gray-200 dark:border-[#273449]">
+              <div className="text-right">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-[#94A3B8] block">
+                  Deterministic Priority
+                </span>
+                <div className="text-2xl sm:text-3xl font-extrabold font-mono text-gray-950 dark:text-[#F8FAFC]">
+                  {priorityScore.toFixed(3)}
+                </div>
               </div>
+              <PriorityBadge label={priorityLabel} size="lg" />
             </div>
-            <PriorityBadge label={priorityLabel} size="lg" />
           </div>
         </div>
 
@@ -393,6 +399,9 @@ export default async function CVEDetailPage({ params }: { params: Promise<{ id: 
         </div>
       </div>
 
+      {/* Structured 6-Section Vulnerability Report Preview & Download */}
+      <ReportPreview cveId={id} />
+
       {/* FULL WIDTH SECTION: Audience-Specific Narratives & Verifier Engine */}
       <div className="bg-white dark:bg-[#111827] rounded-2xl border border-gray-200/90 dark:border-[#273449] shadow-2xs overflow-hidden transition-colors">
         <div className="p-6 border-b border-gray-100 dark:border-[#273449] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -416,11 +425,14 @@ export default async function CVEDetailPage({ params }: { params: Promise<{ id: 
         <div className="flex flex-wrap items-center gap-4 font-mono text-[11px]">
           <span>NVD: {formatDate(evidence.published_date)}</span>
           <span>&bull;</span>
-          <span>EPSS Feed: 29 Sep 2026 15:38</span>
+          <span>EPSS Feed: {evidence.epss?.fetched_at ? formatDate(evidence.epss.fetched_at) : "Daily Refresh"}</span>
           <span>&bull;</span>
-          <span>CISA KEV: {evidence.kev?.date_added || "29 Sep 2026"}</span>
+          <span>CISA KEV: {evidence.kev?.date_added || "Not Cataloged"}</span>
         </div>
       </div>
+
+      {/* Live updater — triggers server re-render when this CVE changes */}
+      <CVEDetailLiveUpdater cveId={id} />
     </div>
   );
 }

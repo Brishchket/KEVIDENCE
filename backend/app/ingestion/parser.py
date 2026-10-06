@@ -24,9 +24,9 @@ _ATTACK_VECTOR_MAP = {
 
 def _extract_cvss(
     metrics: dict[str, Any],
-) -> tuple[float | None, str | None, str | None, str | None]:
-    """Return (base_score, vector_string, severity, attack_vector) preferring CVSSv3.1 > v3.0."""
-    for key in ("cvssMetricV31", "cvssMetricV30"):
+) -> tuple[float | None, str | None, str | None, str | None, str | None]:
+    """Return (base_score, vector_string, severity, attack_vector, version) preferring CVSSv4.0 > v3.1 > v3.0."""
+    for key, version_str in [("cvssMetricV40", "4.0"), ("cvssMetricV31", "3.1"), ("cvssMetricV30", "3.0")]:
         entries = metrics.get(key, [])
         if entries:
             primary = next((e for e in entries if e.get("type") == "Primary"), entries[0])
@@ -38,11 +38,16 @@ def _extract_cvss(
                 match = re.search(r"AV:([NALP])", vector)
                 if match:
                     attack_vector = _ATTACK_VECTOR_MAP.get(match.group(1))
+            
+            # v4.0 sometimes doesn't have baseSeverity directly under cvssData, check both
+            severity = cv.get("baseSeverity") or primary.get("baseSeverity")
+
             return (
                 cv.get("baseScore"),
                 vector,
-                cv.get("baseSeverity"),
+                severity,
                 attack_vector,
+                version_str,
             )
     # Fallback: CVSSv2 (don't extract attack_vector for v2)
     entries = metrics.get("cvssMetricV2", [])
@@ -50,8 +55,8 @@ def _extract_cvss(
         primary = next((e for e in entries if e.get("type") == "Primary"), entries[0])
         cv = primary.get("cvssData", {})
         sev = primary.get("baseSeverity") or cv.get("baseSeverity")
-        return (cv.get("baseScore"), cv.get("vectorString"), sev, None)
-    return None, None, None, None
+        return (cv.get("baseScore"), cv.get("vectorString"), sev, None, "2.0")
+    return None, None, None, None, None
 
 
 def _extract_cwe_ids(weaknesses: list[dict]) -> list[str]:
@@ -65,14 +70,43 @@ def _extract_cwe_ids(weaknesses: list[dict]) -> list[str]:
 
 
 def _extract_cpes(configurations: list[dict]) -> list[str]:
+    cpes, _ = _extract_cpes_and_versions(configurations)
+    return cpes
+
+
+def _extract_cpes_and_versions(configurations: list[dict]) -> tuple[list[str], list[dict[str, Any]]]:
+    """Extract CPE criteria strings and detailed version ranges."""
     cpes: list[str] = []
+    version_ranges: list[dict[str, Any]] = []
+    seen_ranges: set[str] = set()
+
     for node_group in configurations:
         for node in node_group.get("nodes", []):
             for match in node.get("cpeMatch", []):
                 criteria = match.get("criteria", "")
                 if criteria:
                     cpes.append(criteria)
-    return list(set(cpes))
+                v_start_inc = match.get("versionStartIncluding")
+                v_start_exc = match.get("versionStartExcluding")
+                v_end_inc = match.get("versionEndIncluding")
+                v_end_exc = match.get("versionEndExcluding")
+                vulnerable = match.get("vulnerable", True)
+
+                key = f"{criteria}|{v_start_inc}|{v_start_exc}|{v_end_inc}|{v_end_exc}"
+                if key not in seen_ranges:
+                    seen_ranges.add(key)
+                    vendor, product = _parse_cpe(criteria) if criteria else (None, None)
+                    version_ranges.append({
+                        "criteria": criteria,
+                        "vendor": vendor,
+                        "product": product,
+                        "version_start_including": v_start_inc,
+                        "version_start_excluding": v_start_exc,
+                        "version_end_including": v_end_inc,
+                        "version_end_excluding": v_end_exc,
+                        "vulnerable": vulnerable,
+                    })
+    return list(set(cpes)), version_ranges
 
 
 def _parse_cpe(cpe: str) -> tuple[str | None, str | None]:
@@ -103,12 +137,18 @@ def _extract_vendors_products(cpes: list[str]) -> tuple[list[str], list[str]]:
 
 
 def _extract_patch_references(references: list[dict]) -> tuple[list[str], list[str]]:
+    all_urls, patch_urls, _ = _extract_references_with_tags(references)
+    return all_urls, patch_urls
+
+
+def _extract_references_with_tags(references: list[dict]) -> tuple[list[str], list[str], dict[str, list[str]]]:
     """
-    Separate references into general URLs and patch/advisory URLs.
-    NVD tags references with "tags" array including "Patch", "Vendor Advisory", etc.
+    Separate references into general URLs, patch/advisory URLs,
+    and grouped by NVD tag (Patch, Vendor Advisory, Mitigation, Exploit, Third Party Advisory).
     """
     all_urls: list[str] = []
     patch_urls: list[str] = []
+    tagged_refs: dict[str, list[str]] = {}
     patch_tags = {"Patch", "Vendor Advisory", "Mitigation"}
 
     for ref in references:
@@ -116,11 +156,16 @@ def _extract_patch_references(references: list[dict]) -> tuple[list[str], list[s
         if not url:
             continue
         all_urls.append(url)
-        tags = set(ref.get("tags", []))
-        if tags & patch_tags:
+        tags = ref.get("tags", [])
+        if not tags:
+            tagged_refs.setdefault("Other", []).append(url)
+        else:
+            for tag in tags:
+                tagged_refs.setdefault(tag, []).append(url)
+        if set(tags) & patch_tags:
             patch_urls.append(url)
 
-    return all_urls, patch_urls
+    return all_urls, patch_urls, tagged_refs
 
 
 def parse_cve(
@@ -150,17 +195,17 @@ def parse_cve(
 
         # CVSS
         metrics = raw.get("metrics", {})
-        cvss_base_score, cvss_vector, severity, attack_vector = _extract_cvss(metrics)
+        cvss_base_score, cvss_vector, severity, attack_vector, cvss_version = _extract_cvss(metrics)
 
         # CWE
         cwe_ids = _extract_cwe_ids(raw.get("weaknesses", []))
 
-        # CPEs / affected products
-        affected_cpes = _extract_cpes(raw.get("configurations", []))
+        # CPEs / affected products and version ranges
+        affected_cpes, cpe_version_ranges = _extract_cpes_and_versions(raw.get("configurations", []))
         vendors, products = _extract_vendors_products(affected_cpes)
 
         # References
-        all_refs, patch_refs = _extract_patch_references(raw.get("references", []))
+        all_refs, patch_refs, ref_tags = _extract_references_with_tags(raw.get("references", []))
 
         # EPSS
         epss_score = 0.0
@@ -177,16 +222,19 @@ def parse_cve(
             "description": description,
             "cvss_base_score": cvss_base_score,
             "cvss_vector": cvss_vector,
+            "cvss_version": cvss_version,
             "severity": (severity or "UNKNOWN").upper(),
             "attack_vector": attack_vector,
             "cwe_ids": json.dumps(cwe_ids),
             "published_date": raw.get("published", ""),
             "last_modified_date": raw.get("lastModified", ""),
             "affected_cpes": json.dumps(affected_cpes),
+            "cpe_version_ranges": json.dumps(cpe_version_ranges),
             "vendors": json.dumps(vendors),
             "products": json.dumps(products),
             "reference_urls": json.dumps(all_refs),
             "patch_references": json.dumps(patch_refs),
+            "reference_tags": json.dumps(ref_tags),
             "epss_score": epss_score,
             "epss_percentile": epss_percentile,
             "in_kev": in_kev,
@@ -194,3 +242,4 @@ def parse_cve(
     except Exception as exc:
         logger.error("Failed to parse %s: %s", cve_id, exc)
         return None
+

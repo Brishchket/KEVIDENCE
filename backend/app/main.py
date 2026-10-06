@@ -1,7 +1,8 @@
 """
 main.py — FastAPI application for PhantomPatch.
 
-Mounts all routers, configures CORS, seeds demo data on startup.
+Mounts all routers, configures CORS, seeds demo data on startup,
+and starts the realtime polling supervisor.
 """
 from __future__ import annotations
 
@@ -51,7 +52,15 @@ async def lifespan(app: FastAPI):
     await init_db()
     if not await has_data():
         await _seed_demo_data()
+
+    # Start realtime supervisor
+    from app.ingestion.realtime import start_supervisor, stop_supervisor
+    await start_supervisor()
+
     yield
+
+    # Clean shutdown of supervisor
+    await stop_supervisor()
 
 
 app = FastAPI(
@@ -66,6 +75,7 @@ app.add_middleware(
     allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "*"],
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Last-Event-ID"],
 )
 
 # Mount routers
@@ -73,7 +83,14 @@ app.include_router(cves.router)
 app.include_router(ingest.router)
 app.include_router(survey.router)
 
+# New realtime and reporting routers
+from app.routers import reports, stream, sync_status  # noqa: E402
+app.include_router(stream.router)
+app.include_router(sync_status.router)
+app.include_router(reports.router)
+
 
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+

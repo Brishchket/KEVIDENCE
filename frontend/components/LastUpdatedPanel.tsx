@@ -6,9 +6,9 @@ import { useTheme } from "./ThemeProvider";
 
 interface LastUpdatedProps {
   lastUpdated?: {
-    nvd?: string;
-    epss?: string;
-    kev?: string;
+    nvd?: string | null;
+    epss?: string | null;
+    kev?: string | null;
   };
   parseRate?: number;
   theme?: "light" | "dark";
@@ -23,21 +23,21 @@ export default function LastUpdatedPanel({ lastUpdated, parseRate = 100, theme: 
     {
       name: "NVD (NIST CVE Feed)",
       type: "Vulnerability Definitions & CVSS v3.1",
-      timestamp: lastUpdated?.nvd || "2026-09-29T15:38:16+00:00",
+      timestamp: lastUpdated?.nvd ?? null,
       status: "Synced",
       badge: "Primary Corpus",
     },
     {
       name: "FIRST.Org EPSS API",
       type: "Daily Exploit Prediction Probabilities",
-      timestamp: lastUpdated?.epss || "2026-09-29T15:38:13+00:00",
+      timestamp: lastUpdated?.epss ?? null,
       status: "Active Feed",
       badge: "v3 Scoring",
     },
     {
       name: "CISA KEV Catalog",
       type: "Known Exploited Vulnerabilities Database",
-      timestamp: lastUpdated?.kev || "2026-09-29T00:00:00+00:00",
+      timestamp: lastUpdated?.kev ?? null,
       status: "Authoritative",
       badge: "Weaponized",
     },
@@ -124,7 +124,7 @@ export default function LastUpdatedPanel({ lastUpdated, parseRate = 100, theme: 
                   Last Updated:
                 </span>
                 <span className={`font-medium font-mono ${isDark ? "text-slate-200" : "text-gray-700"}`}>
-                  {formatDate(src.timestamp)}
+                  {src.timestamp ? formatDate(src.timestamp) : <span className={isDark ? "text-slate-500 italic" : "text-gray-400 italic"}>Not yet synced</span>}
                 </span>
               </div>
             </div>
