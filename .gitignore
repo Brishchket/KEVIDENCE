@@ -42,3 +42,7 @@ __pycache__/
 *.db
 reports/
 backend/reports/
+
+HUMAN_TODO.md
+PROGRESS.md
+phantompatch.db
